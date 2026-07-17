@@ -50,45 +50,56 @@
     box-shadow:0 2px 12px rgba(20,16,50,.25);
   }
   .top-row{
-    max-width:1440px; margin:0 auto; padding:16px 28px 14px;
-    display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
+    max-width:1440px; margin:0 auto; padding:10px 28px;
+    display:flex; align-items:center; gap:18px; flex-wrap:wrap;
   }
-  .brand{display:flex; align-items:center; gap:12px;}
+  .brand{display:flex; align-items:center; gap:11px;}
   .brand-mark{
-    width:38px; height:38px; border-radius:9px; flex-shrink:0;
+    width:30px; height:30px; border-radius:8px; flex-shrink:0;
     background:linear-gradient(135deg, var(--red), #8f1620);
     display:flex; align-items:center; justify-content:center;
     box-shadow:0 4px 10px -3px rgba(190,30,40,.5);
   }
-  .brand-mark svg{width:20px;height:20px;}
+  .brand-mark svg{width:16px;height:16px;}
   .brand-text h1{
-    font-family:'Space Grotesk',sans-serif; font-size:17px; font-weight:600;
+    font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:600;
     margin:0; letter-spacing:.2px;
   }
-  .brand-text span{
-    font-size:11px; color:rgba(255,255,255,.55); letter-spacing:.6px;
-    text-transform:uppercase; font-weight:500;
+  .back-link{
+    display:inline-flex; align-items:center; gap:6px;
+    color:rgba(255,255,255,.65); font-size:13px; font-weight:500;
+    text-decoration:none; transition:color .15s; white-space:nowrap;
   }
+  .back-link:hover{color:#fff;}
+  .top-actions{margin-left:auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .pill-btn{
+    display:inline-flex; align-items:center; gap:7px;
+    background:var(--red); border:1px solid transparent; color:#fff;
+    padding:7px 14px; border-radius:999px; font-size:12.5px; font-weight:600;
+    cursor:pointer; font-family:'Inter',sans-serif; transition:filter .15s;
+    white-space:nowrap;
+  }
+  .pill-btn:hover{filter:brightness(1.1);}
+  .pill-btn svg{width:13px;height:13px;}
   .top-pills{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
   .pill{
     display:flex; align-items:center; gap:7px;
     background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12);
-    padding:8px 14px; border-radius:999px; font-size:12.5px; color:rgba(255,255,255,.85);
+    padding:6px 13px; border-radius:999px; font-size:12px; color:rgba(255,255,255,.85);
     white-space:nowrap;
   }
   .pill b{color:#fff; font-weight:700;}
   .pill .dot{width:7px;height:7px;border-radius:50%; background:#3fce8a; box-shadow:0 0 8px #3fce8a; flex-shrink:0;}
-  .top-source{
-    max-width:1440px; margin:0 auto; padding:0 28px 14px; text-align:right;
-    font-size:11px; color:rgba(255,255,255,.4);
-  }
 
-  /* filter chips band */
+  /* filter chips band — visível apenas no Painel Geral */
   .chips-band{
     background:var(--navy-2);
     border-top:1px solid rgba(255,255,255,.06);
     border-bottom:1px solid rgba(255,255,255,.06);
+    display:none;
   }
+  .chips-band.visible{display:block;}
+  .chips-hint{font-size:10.5px; color:rgba(255,255,255,.4); white-space:nowrap;}
   .chips-inner{
     max-width:1440px; margin:0 auto; padding:14px 28px;
     display:flex; align-items:center; gap:24px; flex-wrap:wrap;
@@ -311,6 +322,29 @@
   .lock-form input{flex:1;}
 
   footer{max-width:1440px; margin:0 auto; padding:0 28px 40px; color:var(--muted); font-size:12px; text-align:center;}
+
+  /* view-head com ação à direita (Painel Geral) */
+  .view-head-row{display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:22px;}
+  .view-head-row .view-head{margin-bottom:0;}
+
+  /* modal de upload da base (aberto pelo cabeçalho) */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(20,16,50,.55); z-index:100;
+    display:none; align-items:flex-start; justify-content:center; padding:60px 20px;
+    overflow-y:auto;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-box{
+    background:#fff; border-radius:var(--radius); width:100%; max-width:560px;
+    padding:26px; box-shadow:0 30px 60px -20px rgba(20,16,50,.5); position:relative;
+  }
+  .modal-box h3{font-family:'Space Grotesk',sans-serif; font-size:17px; margin:0 0 6px; color:var(--navy);}
+  .modal-box .modal-sub{margin:0 0 18px; color:var(--muted); font-size:13px; line-height:1.5;}
+  .modal-close{
+    position:absolute; top:14px; right:14px; background:none; border:none;
+    color:var(--muted); font-size:20px; cursor:pointer; line-height:1; padding:6px;
+  }
+  .modal-close:hover{color:var(--red);}
 </style>
 </head>
 <body>
@@ -323,22 +357,28 @@
       </div>
       <div class="brand-text">
         <h1>Monitoramento de Técnicos</h1>
-        <span>FFA Infraestrutura · Registro diário de atendimento</span>
       </div>
     </div>
-    <div class="top-pills">
+    <a class="back-link" href="index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+      Voltar ao Portal
+    </a>
+    <div class="top-actions">
       <div class="pill"><span class="dot"></span>Base: <b id="statBaseCount">0</b> técnicos</div>
       <div class="pill">Hoje: <b id="statTodayCount">0</b> atend.</div>
       <div class="pill" id="statDateNow"></div>
+      <button class="pill-btn" id="openUploadBtn" title="Área restrita — exige senha de administrador">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        Carregar base
+      </button>
     </div>
   </div>
-  <div class="top-source">Fonte: Supabase · atualização em tempo real</div>
 
-  <div class="chips-band">
+  <div class="chips-band" id="chipsBand">
     <div class="chips-inner">
       <div class="chips-group">
         <span class="chips-label">Filtrar por base</span>
-        <span class="chips-label" style="margin-left:-6px;">·</span>
+        <span class="chips-hint">· clique = 1 base · Ctrl + clique = várias</span>
       </div>
       <div class="chips-group" id="baseChipsGroup">
         <button class="base-chip active" data-base="">Todas</button>
@@ -359,7 +399,6 @@
   <div class="tab-bar">
     <button class="tab-btn active" data-view="registrar">Registrar Atendimento</button>
     <button class="tab-btn" data-view="painel">Painel Geral</button>
-    <button class="tab-btn" data-view="base">Base de Técnicos</button>
   </div>
 </header>
 
@@ -373,8 +412,7 @@
       <p>Busque o técnico pela base carregada e preencha os dados do atendimento do dia. Todos os campos são obrigatórios.</p>
     </div>
 
-    <div class="layout-split">
-      <div class="card">
+    <div class="card">
         <form id="recordForm">
           <div class="form-grid">
             <div class="field">
@@ -414,28 +452,21 @@
             <span class="status-msg" id="formMsg"></span>
           </div>
         </form>
-      </div>
-
-      <div class="card resumo-card">
-        <h3>Resumo de hoje</h3>
-        <div class="resumo-row"><span class="r-label"><span class="resumo-dot" style="background:var(--st-coletado);"></span>Coletado</span><span class="r-value" id="resumo-coletado">0</span></div>
-        <div class="resumo-row"><span class="r-label"><span class="resumo-dot" style="background:var(--st-naocoletado);"></span>Não Coletado</span><span class="r-value" id="resumo-nao-coletado">0</span></div>
-        <div class="resumo-row"><span class="r-label"><span class="resumo-dot" style="background:var(--st-bloqueado);"></span>Bloqueado</span><span class="r-value" id="resumo-bloqueado">0</span></div>
-        <div class="resumo-row"><span class="r-label"><span class="resumo-dot" style="background:var(--st-falta);"></span>Falta</span><span class="r-value" id="resumo-falta">0</span></div>
-        <div class="resumo-row"><span class="r-label"><span class="resumo-dot" style="background:var(--st-folga);"></span>Folga</span><span class="r-value" id="resumo-folga">0</span></div>
-        <div class="resumo-total"><span>Total de hoje</span><b id="resumoTotal">0</b></div>
-        <button class="btn block" id="finalizeBtn">Finalizar e notificar supervisores</button>
-        <div class="status-msg" id="finalizeMsg" style="margin-top:10px;"></div>
-      </div>
     </div>
   </section>
 
   <!-- ===================== VIEW: PAINEL GERAL ===================== -->
   <section class="view" id="view-painel" hidden>
-    <div class="view-head">
-      <p class="eyebrow">Visão diária</p>
-      <h2>Painel geral</h2>
-      <p>Mostra apenas os atendimentos de hoje. Use o filtro de data na tabela para consultar dias anteriores.</p>
+    <div class="view-head-row">
+      <div class="view-head">
+        <p class="eyebrow">Visão diária · Área restrita</p>
+        <h2>Painel geral</h2>
+        <p>Mostra apenas os atendimentos de hoje. Use o filtro de data na tabela para consultar dias anteriores.</p>
+      </div>
+      <div style="text-align:right;">
+        <button class="btn" id="finalizeBtn">Finalizar e notificar supervisores</button>
+        <div class="status-msg" id="finalizeMsg" style="margin-top:10px; justify-content:flex-end;"></div>
+      </div>
     </div>
 
     <div class="banner">
@@ -450,10 +481,6 @@
       <div class="field grow">
         <label>Buscar técnico</label>
         <input type="text" id="filterSearch" placeholder="Nome do técnico">
-      </div>
-      <div class="field">
-        <label>Base</label>
-        <select id="filterBase"><option value="">Todas</option></select>
       </div>
       <div class="field">
         <label>Status</label>
@@ -493,61 +520,41 @@
     </div>
   </section>
 
-  <!-- ===================== VIEW: BASE DE TÉCNICOS ===================== -->
-  <section class="view" id="view-base" hidden>
-    <div class="view-head">
-      <p class="eyebrow">Área restrita</p>
-      <h2>Base de funcionários ativos</h2>
-      <p>Envie a planilha de cadastro. O sistema lê a <b>coluna G</b> de cada linha e considera técnico apenas quem tiver o texto <b>"tecnicos"</b> nessa célula.</p>
-    </div>
-
-    <div class="banner">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      <div>Essa área é protegida por senha — só quem tiver acesso pode subir ou substituir a base de técnicos.</div>
-    </div>
-
-    <div class="card" style="max-width:640px;">
-      <div class="lock-screen" id="lockScreen">
-        <div class="lock-icon">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        </div>
-        <h3>Acesso restrito</h3>
-        <p>Digite a senha de administrador para liberar o upload da planilha nesse navegador.</p>
-        <div class="lock-form">
-          <input type="password" id="unlockPass" placeholder="Senha">
-          <button class="btn" id="unlockBtn">Entrar</button>
-        </div>
-        <div class="status-msg" id="unlockMsg"></div>
-      </div>
-
-      <div id="uploadArea" style="display:none;">
-        <div class="drop" id="dropArea">
-          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
-          <p>Arraste o arquivo .xlsx / .xls / .csv aqui, ou clique para selecionar</p>
-          <p class="file-name" id="fileName"></p>
-        </div>
-        <div class="status-msg info" id="uploadStatus"></div>
-
-        <div id="configArea" style="display:none; margin-top:16px;">
-          <div class="field">
-            <label>Coluna com o nome do técnico</label>
-            <select id="nameColumnSelect"></select>
-          </div>
-          <div class="field">
-            <label>Linha inicial dos dados</label>
-            <select id="headerRowSelect">
-              <option value="1">Linha 2 (cabeçalho na linha 1)</option>
-              <option value="0">Linha 1 (sem cabeçalho)</option>
-            </select>
-          </div>
-          <button class="btn block" id="processBtn">Processar base e carregar técnicos</button>
-        </div>
-      </div>
-    </div>
-  </section>
-
 </main>
+
+<!-- ===================== MODAL: UPLOAD DA BASE DE TÉCNICOS (aberto pelo cabeçalho, exige senha) ===================== -->
+<div class="modal-overlay" id="uploadModal">
+  <div class="modal-box">
+    <button class="modal-close" id="closeUploadBtn" title="Fechar">&times;</button>
+    <h3>Base de funcionários ativos</h3>
+    <p class="modal-sub">Envie a planilha de cadastro. O sistema lê a <b>coluna G</b> de cada linha e considera técnico apenas quem tiver o texto <b>"tecnicos"</b> nessa célula.</p>
+
+    <div id="uploadArea">
+      <div class="drop" id="dropArea">
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+        <p>Arraste o arquivo .xlsx / .xls / .csv aqui, ou clique para selecionar</p>
+        <p class="file-name" id="fileName"></p>
+      </div>
+      <div class="status-msg info" id="uploadStatus"></div>
+
+      <div id="configArea" style="display:none; margin-top:16px;">
+        <div class="field">
+          <label>Coluna com o nome do técnico</label>
+          <select id="nameColumnSelect"></select>
+        </div>
+        <div class="field">
+          <label>Linha inicial dos dados</label>
+          <select id="headerRowSelect">
+            <option value="1">Linha 2 (cabeçalho na linha 1)</option>
+            <option value="0">Linha 1 (sem cabeçalho)</option>
+          </select>
+        </div>
+        <button class="btn block" id="processBtn">Processar base e carregar técnicos</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <footer>FFA Infraestrutura · Painel interno de monitoramento de técnicos</footer>
 
@@ -596,11 +603,17 @@
 
   /* ---------------- bases into selects ---------------- */
   const fBase = document.getElementById("fBase");
-  const filterBase = document.getElementById("filterBase");
   BASES.forEach(b=>{
     const o1 = document.createElement("option"); o1.value=b; o1.textContent=b; fBase.appendChild(o1);
-    const o2 = document.createElement("option"); o2.value=b; o2.textContent=b; filterBase.appendChild(o2);
   });
+
+  /* ---------------- filtro de bases (chips multi-seleção) ----------------
+     Set vazio = "Todas". Clique simples seleciona só aquela base;
+     Ctrl (ou Cmd no Mac) + clique adiciona/remove da seleção. */
+  let selectedBases = new Set();
+  function baseMatches(base){
+    return selectedBases.size === 0 || selectedBases.has(base);
+  }
   document.getElementById("fDate").value = todayISO();
   document.getElementById("filterDate").value = todayISO();
 
@@ -879,7 +892,7 @@
   function renderWallboard(){
     wallboard.innerHTML = "";
     const STATUS_ORDER = ["Coletado","Não Coletado","Bloqueado","Falta","Folga"];
-    BASES.forEach(base=>{
+    BASES.filter(baseMatches).forEach(base=>{
       const recs = records.filter(r=> r.base === base && r.date === todayISO());
       const card = document.createElement("div");
       card.className = "base-card" + (recs.length ? " has-data" : "");
@@ -925,7 +938,7 @@
   function renderSummary(){
     summaryRow.innerHTML = "";
     STATUS_LIST.forEach(st=>{
-      const count = records.filter(r=> r.status === st && r.date === todayISO()).length;
+      const count = records.filter(r=> r.status === st && r.date === todayISO() && baseMatches(r.base)).length;
       const color = "var(" + STATUS_COLOR_VAR[st] + ")";
       const div = document.createElement("div");
       div.className = "sum-card";
@@ -945,20 +958,22 @@
   const filterStatus = document.getElementById("filterStatus");
   const filterDate = document.getElementById("filterDate");
 
-  [filterSearch, filterBase, filterStatus, filterDate].forEach(el=>{
+  [filterSearch, filterStatus, filterDate].forEach(el=>{
     el.addEventListener("input", renderTable);
     el.addEventListener("change", renderTable);
   });
   document.getElementById("clearFilters").addEventListener("click", ()=>{
-    filterSearch.value=""; filterBase.value=""; filterStatus.value=""; filterDate.value="";
-    renderTable();
+    filterSearch.value=""; filterStatus.value=""; filterDate.value="";
+    selectedBases.clear();
+    syncChipsUI();
+    renderAll();
   });
 
   function getFiltered(){
     const q = normalize(filterSearch.value);
     return records.filter(r=>{
       if(q && !normalize(r.technician).includes(q)) return false;
-      if(filterBase.value && r.base !== filterBase.value) return false;
+      if(!baseMatches(r.base)) return false;
       if(filterStatus.value && r.status !== filterStatus.value) return false;
       if(filterDate.value && r.date !== filterDate.value) return false;
       return true;
@@ -1060,91 +1075,110 @@
     })
     .subscribe();
 
-  /* ================= NAVEGAÇÃO POR ABAS ================= */
-  const navTabs = document.querySelectorAll(".tab-btn");
-  const views = document.querySelectorAll(".view");
-  navTabs.forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      navTabs.forEach(b=> b.classList.remove("active"));
-      btn.classList.add("active");
-      const target = btn.dataset.view;
-      views.forEach(v=> v.hidden = (v.id !== "view-"+target));
-    });
-  });
-
-  /* ================= CHIPS DE BASE (FILTRO RÁPIDO) ================= */
-  const baseChips = document.querySelectorAll(".base-chip");
-  baseChips.forEach(chip=>{
-    chip.addEventListener("click", ()=>{
-      baseChips.forEach(c=> c.classList.remove("active"));
-      chip.classList.add("active");
-      filterBase.value = chip.dataset.base || "";
-      renderTable();
-    });
-  });
-
-  /* ================= ÁREA RESTRITA — SENHA PARA SUBIR A PLANILHA =================
-     Proteção simples de front-end: impede o uso casual por quem não tem a senha.
-     Não é uma segurança "à prova de bala" (o código roda no navegador de quem
-     acessa), mas evita que qualquer pessoa do time mexa na base por engano.
+  /* ================= ÁREA RESTRITA — SENHA DE ADMINISTRADOR =================
+     Uma única senha protege: visualizar o Painel Geral, carregar a base de
+     técnicos e o botão "Finalizar e notificar supervisores".
+     Proteção simples de front-end: impede o uso casual por quem não tem a
+     senha, mas não é segurança "à prova de bala" (o código roda no navegador).
      Para trocar a senha, edite o valor de ADMIN_PASSWORD abaixo. */
-  const ADMIN_PASSWORD = "FFA2026";
-  const lockScreen = document.getElementById("lockScreen");
-  const uploadArea = document.getElementById("uploadArea");
-  const unlockBtn = document.getElementById("unlockBtn");
-  const unlockPass = document.getElementById("unlockPass");
-  const unlockMsg = document.getElementById("unlockMsg");
+  const ADMIN_PASSWORD = "Thiago@3540";
+  const SESSION_KEY = "ffa_admin_ok";
 
   function isAdminUnlocked(){
-    return localStorage.getItem("ffa_admin_unlocked") === "1";
+    try{ return sessionStorage.getItem(SESSION_KEY) === "1"; }catch(e){ return false; }
   }
-  function showUnlockedUI(){
-    if(lockScreen) lockScreen.style.display = "none";
-    if(uploadArea) uploadArea.style.display = "block";
-    document.querySelectorAll(".admin-only").forEach(el=> el.classList.add("unlocked"));
+  function ensureAdmin(){
+    if(isAdminUnlocked()) return true;
+    const entrada = window.prompt("Área restrita.\nDigite a senha de administrador:");
+    if(entrada === null) return false;
+    if(entrada === ADMIN_PASSWORD){
+      try{ sessionStorage.setItem(SESSION_KEY, "1"); }catch(e){}
+      return true;
+    }
+    window.alert("Senha incorreta. Acesso negado.");
+    return false;
   }
-  if(isAdminUnlocked()) showUnlockedUI();
 
-  if(unlockBtn){
-    unlockBtn.addEventListener("click", ()=>{
-      if(unlockPass.value === ADMIN_PASSWORD){
-        localStorage.setItem("ffa_admin_unlocked", "1");
-        showUnlockedUI();
+  /* ================= NAVEGAÇÃO POR ABAS =================
+     O Painel Geral exige a senha de administrador para ser visualizado.
+     Os chips de filtro por base só aparecem quando o Painel Geral está ativo. */
+  const navTabs = document.querySelectorAll(".tab-btn");
+  const views = document.querySelectorAll(".view");
+  const chipsBand = document.getElementById("chipsBand");
+
+  function activateTab(btn){
+    navTabs.forEach(b=> b.classList.remove("active"));
+    btn.classList.add("active");
+    const target = btn.dataset.view;
+    views.forEach(v=> v.hidden = (v.id !== "view-"+target));
+    chipsBand.classList.toggle("visible", target === "painel");
+  }
+  navTabs.forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      if(btn.dataset.view === "painel" && !ensureAdmin()) return;
+      activateTab(btn);
+    });
+  });
+
+  /* ================= CHIPS DE BASE (FILTRO MULTI-SELEÇÃO) =================
+     Clique simples: seleciona apenas aquela base.
+     Ctrl (ou Cmd) + clique: adiciona/remove bases da seleção.
+     "Todas": limpa a seleção (mostra tudo). */
+  const baseChips = document.querySelectorAll(".base-chip");
+  function syncChipsUI(){
+    baseChips.forEach(c=>{
+      const b = c.dataset.base || "";
+      if(b === ""){
+        c.classList.toggle("active", selectedBases.size === 0);
       } else {
-        unlockMsg.textContent = "Senha incorreta.";
-        unlockMsg.className = "status-msg err";
+        c.classList.toggle("active", selectedBases.has(b));
       }
     });
-    unlockPass.addEventListener("keydown", (e)=>{ if(e.key === "Enter") unlockBtn.click(); });
   }
-
-  /* ================= RESUMO DO DIA (card lateral) ================= */
-  function renderResumoCard(){
-    const todays = records.filter(r=> r.date === todayISO());
-    const totalEl = document.getElementById("resumoTotal");
-    if(totalEl) totalEl.textContent = todays.length;
-    STATUS_LIST.forEach(st=>{
-      const c = todays.filter(r=> r.status === st).length;
-      const node = document.getElementById("resumo-"+STATUS_CLASS[st]);
-      if(node) node.textContent = c;
+  baseChips.forEach(chip=>{
+    chip.addEventListener("click", (e)=>{
+      const base = chip.dataset.base || "";
+      const multi = e.ctrlKey || e.metaKey;
+      if(base === ""){
+        selectedBases.clear();                 // "Todas"
+      } else if(multi){
+        if(selectedBases.has(base)) selectedBases.delete(base);
+        else selectedBases.add(base);          // Ctrl+clique: acumula
+      } else {
+        selectedBases = new Set([base]);       // clique simples: só essa
+      }
+      syncChipsUI();
+      renderAll();
     });
-  }
-  const _originalRenderAll = renderAll;
-  renderAll = function(){
-    _originalRenderAll();
-    renderResumoCard();
-  };
-  renderResumoCard();
+  });
+  syncChipsUI();
+
+  /* ================= UPLOAD DA BASE PELO CABEÇALHO (MODAL) ================= */
+  const uploadModal = document.getElementById("uploadModal");
+  const openUploadBtn = document.getElementById("openUploadBtn");
+  const closeUploadBtn = document.getElementById("closeUploadBtn");
+
+  openUploadBtn.addEventListener("click", ()=>{
+    if(!ensureAdmin()) return;
+    uploadModal.classList.add("open");
+  });
+  closeUploadBtn.addEventListener("click", ()=> uploadModal.classList.remove("open"));
+  uploadModal.addEventListener("click", (e)=>{
+    if(e.target === uploadModal) uploadModal.classList.remove("open");
+  });
+  document.addEventListener("keydown", (e)=>{
+    if(e.key === "Escape") uploadModal.classList.remove("open");
+  });
 
   /* ================= FINALIZAR E NOTIFICAR SUPERVISORES =================
-     Pronto para ligar assim que o serviço de envio de e-mail (ex: EmailJS)
-     estiver configurado — hoje o clique confirma a intenção mas ainda não
-     dispara e-mails de verdade. */
+     Fixo no Painel Geral. Pronto para ligar assim que o serviço de envio de
+     e-mail (ex: EmailJS) estiver configurado — hoje o clique confirma a
+     intenção mas ainda não dispara e-mails de verdade. */
   const finalizeBtn = document.getElementById("finalizeBtn");
   const finalizeMsg = document.getElementById("finalizeMsg");
   if(finalizeBtn){
     finalizeBtn.addEventListener("click", ()=>{
-      if(!isAdminUnlocked()){
+      if(!ensureAdmin()){
         finalizeMsg.textContent = "Apenas o administrador pode enviar as notificações.";
         finalizeMsg.className = "status-msg err";
         return;
