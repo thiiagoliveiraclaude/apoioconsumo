@@ -1,0 +1,1161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monitoramento de Técnicos — FFA Infraestrutura</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --navy: #2b2759;
+    --navy-2: #211d47;
+    --navy-3: #3a3570;
+    --red: #be1e28;
+    --red-dark: #9c1620;
+    --white: #ffffff;
+    --paper: #f5f4fa;
+    --ink: #211d3d;
+    --muted: #6e6a92;
+    --line: #e4e1ee;
+    --line-soft: #edebf5;
+    --warn-bg: #fdf3e4;
+    --warn-text: #8a5a12;
+    --warn-border: #f0ddb3;
+    --st-coletado: #1e8e5a;
+    --st-naocoletado: #b8790a;
+    --st-bloqueado: #be1e28;
+    --st-falta: #8b86ac;
+    --st-folga: #3454a6;
+    --radius: 12px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+  }
+  ::selection{background:rgba(190,30,40,.15); color:var(--red);}
+  .mono{font-family:'IBM Plex Mono',monospace;}
+
+  /* ===================== HEADER ===================== */
+  header.top{
+    background:linear-gradient(180deg, var(--navy), #251f52);
+    color:#fff;
+    position:sticky; top:0; z-index:50;
+    box-shadow:0 2px 12px rgba(20,16,50,.25);
+  }
+  .top-row{
+    max-width:1440px; margin:0 auto; padding:16px 28px 14px;
+    display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:12px;}
+  .brand-mark{
+    width:38px; height:38px; border-radius:9px; flex-shrink:0;
+    background:linear-gradient(135deg, var(--red), #8f1620);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 10px -3px rgba(190,30,40,.5);
+  }
+  .brand-mark svg{width:20px;height:20px;}
+  .brand-text h1{
+    font-family:'Space Grotesk',sans-serif; font-size:17px; font-weight:600;
+    margin:0; letter-spacing:.2px;
+  }
+  .brand-text span{
+    font-size:11px; color:rgba(255,255,255,.55); letter-spacing:.6px;
+    text-transform:uppercase; font-weight:500;
+  }
+  .top-pills{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .pill{
+    display:flex; align-items:center; gap:7px;
+    background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12);
+    padding:8px 14px; border-radius:999px; font-size:12.5px; color:rgba(255,255,255,.85);
+    white-space:nowrap;
+  }
+  .pill b{color:#fff; font-weight:700;}
+  .pill .dot{width:7px;height:7px;border-radius:50%; background:#3fce8a; box-shadow:0 0 8px #3fce8a; flex-shrink:0;}
+  .top-source{
+    max-width:1440px; margin:0 auto; padding:0 28px 14px; text-align:right;
+    font-size:11px; color:rgba(255,255,255,.4);
+  }
+
+  /* filter chips band */
+  .chips-band{
+    background:var(--navy-2);
+    border-top:1px solid rgba(255,255,255,.06);
+    border-bottom:1px solid rgba(255,255,255,.06);
+  }
+  .chips-inner{
+    max-width:1440px; margin:0 auto; padding:14px 28px;
+    display:flex; align-items:center; gap:24px; flex-wrap:wrap;
+  }
+  .chips-group{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
+  .chips-label{
+    font-size:10.5px; letter-spacing:.8px; text-transform:uppercase;
+    color:rgba(255,255,255,.45); font-weight:600; white-space:nowrap;
+  }
+  .base-chip{
+    background:var(--red); color:#fff; border:1.5px solid transparent;
+    padding:7px 14px; border-radius:999px; font-size:12.5px; font-weight:600;
+    cursor:pointer; transition:filter .15s, box-shadow .15s; white-space:nowrap;
+  }
+  .base-chip:hover{filter:brightness(1.1);}
+  .base-chip.active{ box-shadow:0 0 0 2px rgba(255,255,255,.55); }
+
+  /* tab bar */
+  .tab-bar{
+    background:var(--navy);
+    display:flex; max-width:1440px; margin:0 auto;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    overflow-x:auto;
+  }
+  .tab-btn{
+    flex:1; min-width:180px; background:transparent; border:none;
+    color:rgba(255,255,255,.55); font-family:'Inter',sans-serif; font-size:14px; font-weight:600;
+    padding:16px 20px; cursor:pointer; border-bottom:3px solid transparent;
+    transition:background .15s, color .15s;
+  }
+  .tab-btn:hover{background:rgba(255,255,255,.04); color:rgba(255,255,255,.8);}
+  .tab-btn.active{ color:#fff; background:rgba(255,255,255,.06); border-bottom-color:var(--red); }
+
+  main{max-width:1440px; margin:0 auto; padding:32px 28px 80px;}
+  .view[hidden]{display:none;}
+
+  .view-head{margin-bottom:22px;}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:1.6px;
+    text-transform:uppercase; color:var(--red); margin:0 0 6px 0; font-weight:600;
+  }
+  .view-head h2{
+    font-family:'Space Grotesk',sans-serif; font-size:23px; margin:0 0 6px 0; font-weight:600;
+    color:var(--navy);
+  }
+  .view-head p{margin:0; color:var(--muted); font-size:13.5px; line-height:1.5; max-width:680px;}
+
+  .banner{
+    display:flex; gap:12px; align-items:flex-start;
+    background:var(--warn-bg); border:1px solid var(--warn-border); color:var(--warn-text);
+    padding:14px 16px; border-radius:10px; font-size:13px; line-height:1.5; margin-bottom:24px;
+  }
+  .banner svg{width:18px;height:18px; flex-shrink:0; margin-top:1px;}
+  .banner b{font-weight:700;}
+
+  .layout-split{display:grid; grid-template-columns:1fr 320px; gap:24px; align-items:start;}
+  @media (max-width:980px){ .layout-split{grid-template-columns:1fr;} }
+
+  .card{
+    background:var(--white); border:1px solid var(--line); border-radius:var(--radius);
+    padding:26px;
+    box-shadow:0 1px 2px rgba(43,39,89,.04), 0 10px 28px -16px rgba(43,39,89,.12);
+  }
+  .card + .card{margin-top:20px;}
+
+  /* form */
+  .field{margin-bottom:16px;}
+  .field label{
+    display:block; font-size:11.5px; color:var(--muted); margin-bottom:7px;
+    text-transform:uppercase; letter-spacing:.5px; font-weight:600;
+  }
+  select, input[type=text], input[type=date], input[type=time], input[type=password]{
+    width:100%; background:var(--white); border:1.5px solid var(--line);
+    color:var(--ink); padding:11px 13px; border-radius:9px; font-size:14px;
+    font-family:'Inter',sans-serif; outline:none; transition:border-color .15s, box-shadow .15s;
+  }
+  select:focus, input:focus{border-color:var(--red); box-shadow:0 0 0 3px rgba(190,30,40,.1);}
+  select:disabled, input:disabled{opacity:.5; cursor:not-allowed; background:var(--paper);}
+
+  .form-grid{display:grid; grid-template-columns:repeat(5, 1fr); gap:14px; align-items:end;}
+  @media (max-width:1100px){ .form-grid{grid-template-columns:repeat(2,1fr);} }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    background:var(--red); color:#fff; border:none;
+    padding:11px 20px; border-radius:9px; font-weight:700; font-size:13.5px;
+    cursor:pointer; transition:filter .15s, transform .1s; font-family:'Inter',sans-serif;
+  }
+  .btn:hover{filter:brightness(1.08);}
+  .btn:active{transform:scale(.98);}
+  .btn:disabled{background:var(--line); color:var(--muted); cursor:not-allowed;}
+  .btn.ghost{background:transparent; border:1.5px solid var(--line); color:var(--navy);}
+  .btn.ghost:hover{border-color:var(--red); color:var(--red);}
+  .btn.small{padding:8px 13px; font-size:12.5px;}
+  .btn.block{width:100%;}
+
+  .status-msg{font-size:13px; margin-top:10px; display:flex; align-items:center; gap:8px;}
+  .status-msg.ok{color:var(--st-coletado);}
+  .status-msg.err{color:var(--red);}
+  .status-msg.info{color:var(--muted);}
+
+  .autocomplete-wrap{position:relative;}
+  .suggestions{
+    position:absolute; top:calc(100% + 4px); left:0; right:0;
+    background:#fff; border:1px solid var(--line); border-radius:9px;
+    max-height:220px; overflow-y:auto; z-index:60;
+    box-shadow:0 14px 28px -10px rgba(43,39,89,.25); display:none;
+  }
+  .suggestions.open{display:block;}
+  .suggestions div{padding:10px 13px; font-size:13.5px; cursor:pointer; color:var(--ink); border-bottom:1px solid var(--line-soft);}
+  .suggestions div:last-child{border-bottom:none;}
+  .suggestions div:hover, .suggestions div.active{background:rgba(190,30,40,.06); color:var(--red);}
+  .suggestions .empty{color:var(--muted); cursor:default;}
+  .suggestions .empty:hover{background:none; color:var(--muted);}
+  .required-mark{color:var(--red); margin-left:2px;}
+
+  /* resumo card */
+  .resumo-card{position:sticky; top:180px;}
+  .resumo-card h3{
+    font-family:'Space Grotesk',sans-serif; font-size:14px; margin:0 0 18px 0;
+    text-transform:uppercase; letter-spacing:.6px; color:var(--navy);
+  }
+  .resumo-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 0; border-bottom:1px solid var(--line-soft); font-size:13.5px;
+  }
+  .resumo-row:last-of-type{border-bottom:none;}
+  .resumo-row .r-label{display:flex; align-items:center; gap:9px; color:var(--muted);}
+  .resumo-dot{width:8px;height:8px;border-radius:50%;}
+  .resumo-row .r-value{font-family:'IBM Plex Mono',monospace; font-weight:600; color:var(--ink);}
+  .resumo-total{
+    display:flex; align-items:center; justify-content:space-between;
+    margin:14px 0 18px; padding-top:16px; border-top:2px solid var(--line);
+  }
+  .resumo-total span:first-child{font-weight:700; color:var(--navy); font-size:13.5px;}
+  .resumo-total b{font-family:'Space Grotesk',sans-serif; font-size:24px; color:var(--red);}
+
+  /* wallboard */
+  .wallboard{display:grid; grid-template-columns:repeat(5, 1fr); gap:14px; margin-bottom:24px;}
+  @media (max-width:980px){ .wallboard{grid-template-columns:repeat(2,1fr);} }
+  @media (max-width:520px){ .wallboard{grid-template-columns:1fr;} }
+  .base-card{
+    background:#fff; border:1px solid var(--line); border-radius:11px; padding:16px;
+    position:relative; overflow:hidden; box-shadow:0 1px 2px rgba(43,39,89,.04);
+  }
+  .base-card::before{content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--line);}
+  .base-card.has-data::before{background:var(--red);}
+  .base-card .b-name{font-size:12.5px; color:var(--muted); margin-bottom:6px; min-height:32px; line-height:1.35; font-weight:500;}
+  .base-card .b-count{font-family:'Space Grotesk',sans-serif; font-size:25px; font-weight:700; color:var(--navy);}
+  .base-card .b-count span{font-size:11px; font-weight:500; color:var(--muted); margin-left:4px; font-family:'Inter',sans-serif;}
+  .base-card .b-bar{height:6px; border-radius:4px; background:var(--line-soft); margin-top:12px; overflow:hidden; display:flex;}
+  .base-card .b-bar span{height:100%;}
+  .base-card .b-breakdown{display:flex; gap:5px; margin-top:10px; flex-wrap:wrap;}
+  .chip{font-size:10.5px; padding:2px 7px; border-radius:999px; font-family:'IBM Plex Mono',monospace; border:1px solid var(--line-soft);}
+
+  /* summary cards */
+  .summary-row{display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:22px;}
+  @media (max-width:900px){ .summary-row{grid-template-columns:repeat(2,1fr);} }
+  .sum-card{border-radius:11px; padding:14px 16px; border:1px solid var(--line); background:#fff;}
+  .sum-card .s-label{font-size:11.5px; text-transform:uppercase; letter-spacing:.5px; color:var(--muted); display:flex; align-items:center; gap:6px; margin-bottom:8px; font-weight:600;}
+  .sum-card .s-value{font-family:'Space Grotesk',sans-serif; font-size:23px; font-weight:700; color:var(--navy);}
+  .s-dot{width:8px; height:8px; border-radius:50%;}
+
+  /* table */
+  .filters-row{display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; align-items:flex-end;}
+  .filters-row .field{margin-bottom:0; min-width:150px; flex:1;}
+  .filters-row .field.grow{flex:2;}
+  table{width:100%; border-collapse:collapse; font-size:13.5px;}
+  thead th{
+    text-align:left; padding:11px 12px; color:var(--muted); font-weight:600;
+    font-size:10.5px; text-transform:uppercase; letter-spacing:.5px;
+    border-bottom:1px solid var(--line); white-space:nowrap;
+  }
+  tbody td{padding:12px; border-bottom:1px solid var(--line-soft); vertical-align:middle;}
+  tbody tr:hover{background:var(--paper);}
+  .badge{display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:600; border:1px solid transparent;}
+  .badge .d{width:6px;height:6px;border-radius:50%;}
+  .badge.coletado{background:rgba(30,142,90,.1); color:var(--st-coletado); border-color:rgba(30,142,90,.25);}
+  .badge.nao-coletado{background:rgba(184,121,10,.1); color:var(--st-naocoletado); border-color:rgba(184,121,10,.25);}
+  .badge.bloqueado{background:rgba(190,30,40,.1); color:var(--st-bloqueado); border-color:rgba(190,30,40,.25);}
+  .badge.falta{background:rgba(139,134,172,.12); color:var(--st-falta); border-color:rgba(139,134,172,.28);}
+  .badge.folga{background:rgba(52,84,166,.1); color:var(--st-folga); border-color:rgba(52,84,166,.25);}
+  .empty-state{padding:48px 20px; text-align:center; color:var(--muted);}
+  .empty-state svg{width:30px; height:30px; margin-bottom:10px; opacity:.4;}
+  .table-wrap{border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; background:#fff;}
+  .table-scroll{overflow-x:auto;}
+  .table-head-actions{display:flex; justify-content:space-between; align-items:center; padding:16px 22px; border-bottom:1px solid var(--line);}
+  .table-head-actions h3{margin:0; font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:600; color:var(--navy);}
+  .del-btn{background:none; border:1px solid var(--line); color:var(--muted); border-radius:6px; padding:5px 9px; cursor:pointer; font-size:11.5px;}
+  .del-btn:hover{border-color:var(--red); color:var(--red);}
+
+  /* upload drag-and-drop */
+  .drop{
+    border:1.5px dashed var(--line);
+    border-radius:var(--radius);
+    padding:26px; text-align:center;
+    background:var(--paper);
+    transition:border-color .15s, background .15s;
+    cursor:pointer;
+  }
+  .drop:hover, .drop.drag{border-color:var(--red); background:rgba(190,30,40,.04);}
+  .drop svg{width:26px;height:26px; color:var(--red); margin-bottom:8px;}
+  .drop p{margin:0; font-size:13.5px; color:var(--muted);}
+  .drop p.file-name{color:var(--ink); font-weight:500; margin-top:6px;}
+  .drop input{display:none;}
+
+  /* lock screen */
+  .lock-screen{
+    display:flex; flex-direction:column; align-items:center; text-align:center;
+    padding:56px 24px; gap:14px;
+  }
+  .lock-icon{
+    width:52px; height:52px; border-radius:14px; background:rgba(190,30,40,.08);
+    display:flex; align-items:center; justify-content:center; color:var(--red); margin-bottom:6px;
+  }
+  .lock-icon svg{width:24px;height:24px;}
+  .lock-screen h3{font-family:'Space Grotesk',sans-serif; font-size:17px; margin:0; color:var(--navy);}
+  .lock-screen p{margin:0; color:var(--muted); font-size:13.5px; max-width:340px;}
+  .lock-form{display:flex; gap:10px; margin-top:8px; width:100%; max-width:320px;}
+  .lock-form input{flex:1;}
+
+  footer{max-width:1440px; margin:0 auto; padding:0 28px 40px; color:var(--muted); font-size:12px; text-align:center;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-row">
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6M12 16v6M2 12h6M16 12h6"/><circle cx="12" cy="12" r="2.4" fill="#fff" stroke="none"/></svg>
+      </div>
+      <div class="brand-text">
+        <h1>Monitoramento de Técnicos</h1>
+        <span>FFA Infraestrutura · Registro diário de atendimento</span>
+      </div>
+    </div>
+    <div class="top-pills">
+      <div class="pill"><span class="dot"></span>Base: <b id="statBaseCount">0</b> técnicos</div>
+      <div class="pill">Hoje: <b id="statTodayCount">0</b> atend.</div>
+      <div class="pill" id="statDateNow"></div>
+    </div>
+  </div>
+  <div class="top-source">Fonte: Supabase · atualização em tempo real</div>
+
+  <div class="chips-band">
+    <div class="chips-inner">
+      <div class="chips-group">
+        <span class="chips-label">Filtrar por base</span>
+        <span class="chips-label" style="margin-left:-6px;">·</span>
+      </div>
+      <div class="chips-group" id="baseChipsGroup">
+        <button class="base-chip active" data-base="">Todas</button>
+        <button class="base-chip" data-base="Campo Grande">Campo Grande</button>
+        <button class="base-chip" data-base="Niterói">Niterói</button>
+        <button class="base-chip" data-base="Petrópolis">Petrópolis</button>
+        <button class="base-chip" data-base="Campos dos Goytacazes">Campos dos Goytacazes</button>
+        <button class="base-chip" data-base="Olaria">Olaria</button>
+        <button class="base-chip" data-base="Teresópolis">Teresópolis</button>
+        <button class="base-chip" data-base="São Pedro da Aldeia">São Pedro da Aldeia</button>
+        <button class="base-chip" data-base="Nova Friburgo">Nova Friburgo</button>
+        <button class="base-chip" data-base="Macaé">Macaé</button>
+        <button class="base-chip" data-base="Rio das Ostras">Rio das Ostras</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <button class="tab-btn active" data-view="registrar">Registrar Atendimento</button>
+    <button class="tab-btn" data-view="painel">Painel Geral</button>
+    <button class="tab-btn" data-view="base">Base de Técnicos</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ===================== VIEW: REGISTRAR ===================== -->
+  <section class="view" id="view-registrar">
+    <div class="view-head">
+      <p class="eyebrow">Lançamento diário</p>
+      <h2>Registrar atendimento do técnico</h2>
+      <p>Busque o técnico pela base carregada e preencha os dados do atendimento do dia. Todos os campos são obrigatórios.</p>
+    </div>
+
+    <div class="layout-split">
+      <div class="card">
+        <form id="recordForm">
+          <div class="form-grid">
+            <div class="field">
+              <label>Data<span class="required-mark">*</span></label>
+              <input type="date" id="fDate" required>
+            </div>
+            <div class="field">
+              <label>Base<span class="required-mark">*</span></label>
+              <select id="fBase" required>
+                <option value="" disabled selected>Selecione a base</option>
+              </select>
+            </div>
+            <div class="field autocomplete-wrap">
+              <label>Técnico<span class="required-mark">*</span></label>
+              <input type="text" id="fTechSearch" placeholder="Digite o nome do técnico" autocomplete="off" disabled required>
+              <input type="hidden" id="fTechValue">
+              <div class="suggestions" id="suggestions"></div>
+            </div>
+            <div class="field">
+              <label>Status<span class="required-mark">*</span></label>
+              <select id="fStatus" required>
+                <option value="" disabled selected>Selecione</option>
+                <option value="Coletado">Coletado</option>
+                <option value="Não Coletado">Não Coletado</option>
+                <option value="Bloqueado">Bloqueado</option>
+                <option value="Falta">Falta</option>
+                <option value="Folga">Folga</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Hora do atendimento<span class="required-mark">*</span></label>
+              <input type="time" id="fHora" required>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:14px; margin-top:8px;">
+            <button type="submit" class="btn">Adicionar registro</button>
+            <span class="status-msg" id="formMsg"></span>
+          </div>
+        </form>
+      </div>
+
+      <div class="card resumo-card">
+        <h3>Resumo de hoje</h3>
+        <div class="resumo-row"><span class="r-label"><span class="resumo-dot" style="background:var(--st-coletado);"></span>Coletado</span><span class="r-value" id="resumo-coletado">0</span></div>
+        <div class="resumo-row"><span class="r-label"><span class="resumo-dot" style="background:var(--st-naocoletado);"></span>Não Coletado</span><span class="r-value" id="resumo-nao-coletado">0</span></div>
+        <div class="resumo-row"><span class="r-label"><span class="resumo-dot" style="background:var(--st-bloqueado);"></span>Bloqueado</span><span class="r-value" id="resumo-bloqueado">0</span></div>
+        <div class="resumo-row"><span class="r-label"><span class="resumo-dot" style="background:var(--st-falta);"></span>Falta</span><span class="r-value" id="resumo-falta">0</span></div>
+        <div class="resumo-row"><span class="r-label"><span class="resumo-dot" style="background:var(--st-folga);"></span>Folga</span><span class="r-value" id="resumo-folga">0</span></div>
+        <div class="resumo-total"><span>Total de hoje</span><b id="resumoTotal">0</b></div>
+        <button class="btn block" id="finalizeBtn">Finalizar e notificar supervisores</button>
+        <div class="status-msg" id="finalizeMsg" style="margin-top:10px;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== VIEW: PAINEL GERAL ===================== -->
+  <section class="view" id="view-painel" hidden>
+    <div class="view-head">
+      <p class="eyebrow">Visão diária</p>
+      <h2>Painel geral</h2>
+      <p>Mostra apenas os atendimentos de hoje. Use o filtro de data na tabela para consultar dias anteriores.</p>
+    </div>
+
+    <div class="banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      <div><b>Painel não cumulativo:</b> os cartões e o resumo abaixo mostram apenas os registros de hoje. O histórico completo continua salvo e pode ser consultado na tabela mais abaixo, filtrando por outra data.</div>
+    </div>
+
+    <div class="summary-row" id="summaryRow"></div>
+    <div class="wallboard" id="wallboard"></div>
+
+    <div class="filters-row">
+      <div class="field grow">
+        <label>Buscar técnico</label>
+        <input type="text" id="filterSearch" placeholder="Nome do técnico">
+      </div>
+      <div class="field">
+        <label>Base</label>
+        <select id="filterBase"><option value="">Todas</option></select>
+      </div>
+      <div class="field">
+        <label>Status</label>
+        <select id="filterStatus">
+          <option value="">Todos</option>
+          <option value="Coletado">Coletado</option>
+          <option value="Não Coletado">Não Coletado</option>
+          <option value="Bloqueado">Bloqueado</option>
+          <option value="Falta">Falta</option>
+          <option value="Folga">Folga</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Data</label>
+        <input type="date" id="filterDate">
+      </div>
+      <button class="btn ghost small" id="clearFilters">Limpar filtros</button>
+    </div>
+
+    <div class="table-wrap">
+      <div class="table-head-actions">
+        <h3 id="tableCount">0 registros</h3>
+        <button class="btn small" id="exportBtn">Exportar planilha</button>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Data</th><th>Base</th><th>Técnico</th><th>Status</th><th>Hora</th><th></th></tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="emptyState" style="display:none;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M9 4v16"/></svg>
+        <p>Nenhum registro encontrado para esse filtro.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== VIEW: BASE DE TÉCNICOS ===================== -->
+  <section class="view" id="view-base" hidden>
+    <div class="view-head">
+      <p class="eyebrow">Área restrita</p>
+      <h2>Base de funcionários ativos</h2>
+      <p>Envie a planilha de cadastro. O sistema lê a <b>coluna G</b> de cada linha e considera técnico apenas quem tiver o texto <b>"tecnicos"</b> nessa célula.</p>
+    </div>
+
+    <div class="banner">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <div>Essa área é protegida por senha — só quem tiver acesso pode subir ou substituir a base de técnicos.</div>
+    </div>
+
+    <div class="card" style="max-width:640px;">
+      <div class="lock-screen" id="lockScreen">
+        <div class="lock-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        <h3>Acesso restrito</h3>
+        <p>Digite a senha de administrador para liberar o upload da planilha nesse navegador.</p>
+        <div class="lock-form">
+          <input type="password" id="unlockPass" placeholder="Senha">
+          <button class="btn" id="unlockBtn">Entrar</button>
+        </div>
+        <div class="status-msg" id="unlockMsg"></div>
+      </div>
+
+      <div id="uploadArea" style="display:none;">
+        <div class="drop" id="dropArea">
+          <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          <p>Arraste o arquivo .xlsx / .xls / .csv aqui, ou clique para selecionar</p>
+          <p class="file-name" id="fileName"></p>
+        </div>
+        <div class="status-msg info" id="uploadStatus"></div>
+
+        <div id="configArea" style="display:none; margin-top:16px;">
+          <div class="field">
+            <label>Coluna com o nome do técnico</label>
+            <select id="nameColumnSelect"></select>
+          </div>
+          <div class="field">
+            <label>Linha inicial dos dados</label>
+            <select id="headerRowSelect">
+              <option value="1">Linha 2 (cabeçalho na linha 1)</option>
+              <option value="0">Linha 1 (sem cabeçalho)</option>
+            </select>
+          </div>
+          <button class="btn block" id="processBtn">Processar base e carregar técnicos</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>FFA Infraestrutura · Painel interno de monitoramento de técnicos</footer>
+
+<script>
+
+(function(){
+  "use strict";
+
+  // CREDENCIAIS DO BANCO DE DADOS (CONFIGURADO CORRETAMENTE)
+  const SUPABASE_URL = "https://otktqaqcwfsbjcxgaawn.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90a3RxYXFjd2ZzYmpjeGdhYXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDc2MDEsImV4cCI6MjA5ODU4MzYwMX0.BrW2fHIKW4dWkaR4cgc38dZDbRbaTo5Dm2YfvavEZKA";
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const BASES = ["Campo Grande","Niterói","Petrópolis","Campos dos Goytacazes","Olaria","Teresópolis","São Pedro da Aldeia","Nova Friburgo","Macaé","Rio das Ostras"];
+  const STATUS_CLASS = {
+    "Coletado":"coletado", "Não Coletado":"nao-coletado", "Bloqueado":"bloqueado",
+    "Falta":"falta", "Folga":"folga"
+  };
+  const STATUS_COLOR_VAR = {
+    "Coletado":"--st-coletado","Não Coletado":"--st-naocoletado","Bloqueado":"--st-bloqueado",
+    "Falta":"--st-falta","Folga":"--st-folga"
+  };
+
+  let technicianDB = [];      
+  let rawRows = [];           
+  let records = [];           
+
+  function normalize(str){
+    return String(str||"")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .toLowerCase().trim();
+  }
+
+  function todayISO(){
+    const d = new Date();
+    return d.toISOString().slice(0,10);
+  }
+
+  /* ---------------- header / clock ---------------- */
+  function updateClock(){
+    const now = new Date();
+    document.getElementById("statDateNow").textContent =
+      now.toLocaleDateString('pt-BR', {weekday:'short', day:'2-digit', month:'short'});
+  }
+  updateClock();
+
+  /* ---------------- bases into selects ---------------- */
+  const fBase = document.getElementById("fBase");
+  const filterBase = document.getElementById("filterBase");
+  BASES.forEach(b=>{
+    const o1 = document.createElement("option"); o1.value=b; o1.textContent=b; fBase.appendChild(o1);
+    const o2 = document.createElement("option"); o2.value=b; o2.textContent=b; filterBase.appendChild(o2);
+  });
+  document.getElementById("fDate").value = todayISO();
+  document.getElementById("filterDate").value = todayISO();
+
+  /* ================= UPLOAD & PARSE ================= */
+  const dropArea = document.getElementById("dropArea");
+  const fileInput = document.getElementById("fileInput");
+  const fileNameEl = document.getElementById("fileName");
+  const uploadStatus = document.getElementById("uploadStatus");
+  const configArea = document.getElementById("configArea");
+  const nameColumnSelect = document.getElementById("nameColumnSelect");
+  const headerRowSelect = document.getElementById("headerRowSelect");
+  const processBtn = document.getElementById("processBtn");
+
+  dropArea.addEventListener("click", ()=> fileInput.click());
+  ["dragenter","dragover"].forEach(evt=>{
+    dropArea.addEventListener(evt, e=>{ e.preventDefault(); dropArea.classList.add("drag"); });
+  });
+  ["dragleave","drop"].forEach(evt=>{
+    dropArea.addEventListener(evt, e=>{ e.preventDefault(); dropArea.classList.remove("drag"); });
+  });
+  dropArea.addEventListener("drop", e=>{
+    const f = e.dataTransfer.files[0];
+    if(f){ fileInput.files = e.dataTransfer.files; handleFile(f); }
+  });
+  fileInput.addEventListener("change", e=>{
+    const f = e.target.files[0];
+    if(f) handleFile(f);
+  });
+
+  function setUploadStatus(msg, type){
+    uploadStatus.textContent = msg;
+    uploadStatus.className = "status-msg " + (type||"info");
+  }
+
+  function handleFile(file){
+    fileNameEl.textContent = file.name;
+    setUploadStatus("Lendo arquivo...", "info");
+    configArea.style.display = "none";
+
+    const reader = new FileReader();
+    reader.onload = function(e){
+      try{
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type:"array"});
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        rawRows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:""});
+
+        if(!rawRows.length){
+          setUploadStatus("O arquivo está vazio.", "err");
+          return;
+        }
+        const maxCols = rawRows.reduce((m,r)=>Math.max(m,r.length),0);
+        if(maxCols < 7){
+          setUploadStatus("O arquivo não possui coluna G. Verifique o layout do arquivo.", "err");
+          return;
+        }
+
+        const header = rawRows[0];
+        nameColumnSelect.innerHTML = "";
+        header.forEach((h, idx)=>{
+          const label = (h && String(h).trim()) ? String(h).trim() : ("Coluna " + String.fromCharCode(65+idx));
+          const opt = document.createElement("option");
+          opt.value = idx;
+          opt.textContent = String.fromCharCode(65+idx) + " — " + label;
+          nameColumnSelect.appendChild(opt);
+        });
+        nameColumnSelect.value = 0;
+
+        configArea.style.display = "block";
+        setUploadStatus(rawRows.length - 1 + " linhas encontradas no arquivo. Selecione a coluna do nome e processe.", "info");
+      }catch(err){
+        console.error(err);
+        setUploadStatus("Não foi possível ler o arquivo. Verifique o formato.", "err");
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  processBtn.addEventListener("click", async function(){
+    const nameColIdx = parseInt(nameColumnSelect.value, 10);
+    const startRow = parseInt(headerRowSelect.value, 10);
+    const dataRows = rawRows.slice(startRow);
+
+    const names = new Set();
+    let scanned = 0;
+    dataRows.forEach(row=>{
+      const gCell = row[6];
+      if(gCell === undefined || gCell === "") return;
+      scanned++;
+      if(normalize(gCell).includes("tecnico")){
+        const rawName = row[nameColIdx];
+        const name = String(rawName||"").trim();
+        if(name) names.add(name);
+      }
+    });
+
+    const found = Array.from(names).sort((a,b)=> a.localeCompare(b,'pt-BR'));
+
+    if(found.length === 0){
+      setUploadStatus('Nenhuma linha com "tecnicos" foi encontrada na coluna G.', "err");
+      return;
+    }
+
+    setUploadStatus(found.length + " técnicos encontrados. Salvando no banco de dados...", "info");
+    processBtn.disabled = true;
+
+    try{
+      const rows = found.map(n=> ({ nome: n }));
+      const chunkSize = 200;
+      for(let i=0; i<rows.length; i+=chunkSize){
+        const chunk = rows.slice(i, i+chunkSize);
+        const { error } = await supabase.from("tecnicos").upsert(chunk, { onConflict: "nome", ignoreDuplicates: true });
+        if(error) throw error;
+      }
+      await loadTechniciansFromDB();
+      setUploadStatus(technicianDB.length + " técnicos carregados e salvos no banco. Já disponíveis para todos, sem precisar subir a planilha de novo.", "ok");
+    }catch(err){
+      console.error(err);
+      setUploadStatus("Técnicos identificados no arquivo, mas houve erro ao salvar no banco. Tente novamente.", "err");
+    }finally{
+      processBtn.disabled = false;
+    }
+  });
+
+  // Carrega a lista de técnicos já salva no Supabase (usada por todos os usuários)
+  // Pagina a leitura: o Supabase retorna no máximo ~1000 linhas por requisição,
+  // então buscamos página por página até trazer TODOS os nomes (evita "parar na letra S").
+  async function loadTechniciansFromDB(){
+    const step = 1000;
+    let from = 0;
+    let all = [];
+    while(true){
+      const { data, error } = await supabase
+        .from("tecnicos")
+        .select("nome")
+        .order("nome", { ascending: true })
+        .range(from, from + step - 1);
+      if(error){ console.error(error); break; }
+      if(!data || data.length === 0) break;   // não há mais registros
+      all = all.concat(data.map(r=> r.nome));
+      from += data.length;                     // avança pelo que realmente veio
+      if(data.length < step) break;            // última página
+      if(from > 200000) break;                 // trava de segurança
+    }
+    technicianDB = all;
+    document.getElementById("statBaseCount").textContent = technicianDB.length;
+    const searchInput = document.getElementById("fTechSearch");
+    searchInput.disabled = technicianDB.length === 0;
+    searchInput.placeholder = technicianDB.length ? "Digite o nome do técnico" : "Carregue a base primeiro";
+  }
+
+  /* ================= AUTOCOMPLETE ================= */
+  const searchInput = document.getElementById("fTechSearch");
+  const hiddenTech = document.getElementById("fTechValue");
+  const suggestionsBox = document.getElementById("suggestions");
+  let activeIndex = -1;
+  let currentMatches = [];
+
+  function renderSuggestions(query){
+    const q = normalize(query);
+    currentMatches = !q ? technicianDB.slice(0,8) : technicianDB.filter(n=> normalize(n).includes(q)).slice(0,8);
+    suggestionsBox.innerHTML = "";
+    activeIndex = -1;
+
+    if(currentMatches.length === 0){
+      const div = document.createElement("div");
+      div.className = "empty";
+      div.textContent = "Nenhum técnico encontrado";
+      suggestionsBox.appendChild(div);
+    } else {
+      currentMatches.forEach((name)=>{
+        const div = document.createElement("div");
+        div.textContent = name;
+        div.addEventListener("mousedown", (e)=>{ e.preventDefault(); selectTechnician(name); });
+        suggestionsBox.appendChild(div);
+      });
+    }
+    suggestionsBox.classList.add("open");
+  }
+
+  function selectTechnician(name){
+    searchInput.value = name;
+    hiddenTech.value = name;
+    suggestionsBox.classList.remove("open");
+  }
+
+  searchInput.addEventListener("input", ()=>{
+    hiddenTech.value = "";
+    renderSuggestions(searchInput.value);
+  });
+  searchInput.addEventListener("focus", ()=>{
+    if(!searchInput.disabled) renderSuggestions(searchInput.value);
+  });
+  searchInput.addEventListener("keydown", (e)=>{
+    const items = suggestionsBox.querySelectorAll("div:not(.empty)");
+    if(e.key === "ArrowDown"){
+      e.preventDefault();
+      activeIndex = Math.min(activeIndex+1, items.length-1);
+      items.forEach((it,i)=> it.classList.toggle("active", i===activeIndex));
+      if(items[activeIndex]) items[activeIndex].scrollIntoView({block:"nearest"});
+    } else if(e.key === "ArrowUp"){
+      e.preventDefault();
+      activeIndex = Math.max(activeIndex-1, 0);
+      items.forEach((it,i)=> it.classList.toggle("active", i===activeIndex));
+    } else if(e.key === "Enter"){
+      if(activeIndex >= 0 && currentMatches[activeIndex]){
+        e.preventDefault();
+        selectTechnician(currentMatches[activeIndex]);
+      }
+    } else if(e.key === "Escape"){
+      suggestionsBox.classList.remove("open");
+    }
+  });
+  document.addEventListener("click", (e)=>{
+    if(!e.target.closest(".autocomplete-wrap")) suggestionsBox.classList.remove("open");
+  });
+
+  /* ================= FORM SUBMIT (SUPABASE) ================= */
+  const form = document.getElementById("recordForm");
+  const formMsg = document.getElementById("formMsg");
+
+  form.addEventListener("submit", async function(e){
+    e.preventDefault();
+    formMsg.textContent = "";
+    formMsg.className = "status-msg";
+
+    const date = document.getElementById("fDate").value;
+    const base = document.getElementById("fBase").value;
+    const tech = hiddenTech.value;
+    const status = document.getElementById("fStatus").value;
+    const hora = document.getElementById("fHora").value;
+
+    if(!date || !base || !status || !hora){
+      formMsg.textContent = "Preencha todos os campos obrigatórios.";
+      formMsg.classList.add("err");
+      return;
+    }
+    if(!tech || !technicianDB.includes(tech)){
+      formMsg.textContent = "Selecione um técnico válido na lista de sugestões.";
+      formMsg.classList.add("err");
+      searchInput.focus();
+      return;
+    }
+
+    const novoRegistro = { date, base, technician: tech, status, hora };
+    
+    // Insere diretamente na tabela do Supabase
+    const { data, error } = await supabase
+      .from('atendimentos')
+      .insert([novoRegistro])
+      .select();
+
+    if (error) {
+      formMsg.textContent = "Erro ao salvar no banco de dados.";
+      formMsg.classList.add("err");
+      console.error(error);
+      return;
+    }
+
+    formMsg.textContent = "Registro adicionado com sucesso!";
+    formMsg.classList.add("ok");
+
+    searchInput.value = ""; hiddenTech.value = "";
+    document.getElementById("fStatus").value = "";
+    document.getElementById("fHora").value = "";
+    document.getElementById("fBase").value = base; 
+    document.getElementById("fDate").value = date;
+
+    carregarDadosDoBanco();
+    flashBase(base);
+  });
+
+  /* ================= WALLBOARD ================= */
+  const wallboard = document.getElementById("wallboard");
+
+  function renderWallboard(){
+    wallboard.innerHTML = "";
+    const STATUS_ORDER = ["Coletado","Não Coletado","Bloqueado","Falta","Folga"];
+    BASES.forEach(base=>{
+      const recs = records.filter(r=> r.base === base && r.date === todayISO());
+      const card = document.createElement("div");
+      card.className = "base-card" + (recs.length ? " has-data" : "");
+      card.dataset.base = base;
+
+      const byStatus = {};
+      recs.forEach(r=> byStatus[r.status] = (byStatus[r.status]||0)+1);
+
+      const chips = Object.keys(byStatus).map(st=>{
+        const color = "var(" + STATUS_COLOR_VAR[st] + ")";
+        return '<span class="chip" style="color:'+color+'; border-color:'+color+'55;">'+st+' · '+byStatus[st]+'</span>';
+      }).join("");
+
+      const total = recs.length;
+      const bar = total ? STATUS_ORDER.filter(st=> byStatus[st]).map(st=>{
+        const pct = (byStatus[st]/total*100).toFixed(1);
+        const color = "var(" + STATUS_COLOR_VAR[st] + ")";
+        return '<span style="width:'+pct+'%; background:'+color+';"></span>';
+      }).join("") : '';
+
+      card.innerHTML =
+        '<div class="b-name">'+base+'</div>' +
+        '<div class="b-count mono">'+recs.length+'<span>atend.</span></div>' +
+        '<div class="b-bar">'+bar+'</div>' +
+        '<div class="b-breakdown">'+ (chips || '<span class="chip" style="color:var(--text-faint)">sem registros</span>') +'</div>';
+      wallboard.appendChild(card);
+    });
+  }
+
+  function flashBase(base){
+    const card = wallboard.querySelector('[data-base="'+CSS.escape(base)+'"]');
+    if(card){
+      card.classList.remove("flash");
+      void card.offsetWidth;
+      card.classList.add("flash");
+    }
+  }
+
+  /* ================= SUMMARY ================= */
+  const summaryRow = document.getElementById("summaryRow");
+  const STATUS_LIST = ["Coletado","Não Coletado","Bloqueado","Falta","Folga"];
+
+  function renderSummary(){
+    summaryRow.innerHTML = "";
+    STATUS_LIST.forEach(st=>{
+      const count = records.filter(r=> r.status === st && r.date === todayISO()).length;
+      const color = "var(" + STATUS_COLOR_VAR[st] + ")";
+      const div = document.createElement("div");
+      div.className = "sum-card";
+      div.innerHTML =
+        '<div class="s-label"><span class="s-dot" style="background:'+color+'"></span>'+st+'</div>' +
+        '<div class="s-value mono">'+count+'</div>';
+      summaryRow.appendChild(div);
+    });
+  }
+
+  /* ================= TABLE ================= */
+  const tableBody = document.getElementById("tableBody");
+  const emptyState = document.getElementById("emptyState");
+  const tableCount = document.getElementById("tableCount");
+
+  const filterSearch = document.getElementById("filterSearch");
+  const filterStatus = document.getElementById("filterStatus");
+  const filterDate = document.getElementById("filterDate");
+
+  [filterSearch, filterBase, filterStatus, filterDate].forEach(el=>{
+    el.addEventListener("input", renderTable);
+    el.addEventListener("change", renderTable);
+  });
+  document.getElementById("clearFilters").addEventListener("click", ()=>{
+    filterSearch.value=""; filterBase.value=""; filterStatus.value=""; filterDate.value="";
+    renderTable();
+  });
+
+  function getFiltered(){
+    const q = normalize(filterSearch.value);
+    return records.filter(r=>{
+      if(q && !normalize(r.technician).includes(q)) return false;
+      if(filterBase.value && r.base !== filterBase.value) return false;
+      if(filterStatus.value && r.status !== filterStatus.value) return false;
+      if(filterDate.value && r.date !== filterDate.value) return false;
+      return true;
+    }).sort((a,b)=> (b.date+b.hora).localeCompare(a.date+a.hora));
+  }
+
+  function fmtDate(iso){
+    if(!iso) return "";
+    const [y,m,d] = iso.split("-");
+    return d+"/"+m+"/"+y;
+  }
+
+  function renderTable(){
+    const filtered = getFiltered();
+    tableBody.innerHTML = "";
+    emptyState.style.display = filtered.length ? "none" : "block";
+    tableCount.textContent = filtered.length + (filtered.length===1 ? " registro" : " registros");
+
+    filtered.forEach(r=>{
+      const tr = document.createElement("tr");
+      const cls = STATUS_CLASS[r.status] || "";
+      tr.innerHTML =
+        '<td class="mono">'+fmtDate(r.date)+'</td>' +
+        '<td>'+r.base+'</td>' +
+        '<td>'+r.technician+'</td>' +
+        '<td><span class="badge '+cls+'"><span class="d" style="background:currentColor;"></span>'+r.status+'</span></td>' +
+        '<td class="mono">'+r.hora+'</td>' +
+        '<td><button class="del-btn" data-id=\"'+r.id+'\">Excluir</button></td>';
+      tableBody.appendChild(tr);
+    });
+
+    tableBody.querySelectorAll(".del-btn").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const id = btn.dataset.id;
+        
+        // Deleta do banco de dados real
+        const { error } = await supabase
+          .from('atendimentos')
+          .delete()
+          .eq('id', id);
+
+        if(!error) {
+          carregarDadosDoBanco();
+        } else {
+          alert("Erro ao excluir do banco de dados.");
+        }
+      });
+    });
+
+    document.getElementById("statTodayCount").textContent =
+      records.filter(r=> r.date === todayISO()).length;
+  }
+
+  /* ================= EXPORT ================= */
+  document.getElementById("exportBtn").addEventListener("click", ()=>{
+    const filtered = getFiltered();
+    if(!filtered.length){ alert("Não há registros para exportar."); return; }
+    const rows = filtered.map(r=>({
+      "Data": fmtDate(r.date),
+      "Base": r.base,
+      "Técnico": r.technician,
+      "Status": r.status,
+      "Hora do atendimento": r.hora
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Registros");
+    XLSX.writeFile(wb, "monitoramento_tecnicos_" + todayISO() + ".xlsx");
+  });
+
+  /* ================= BUSCAR DADOS DO SUPABASE ================= */
+  async function carregarDadosDoBanco() {
+    const { data, error } = await supabase
+      .from('atendimentos')
+      .select('*');
+
+    if (!error && data) {
+      records = data; 
+      renderAll();
+    }
+  }
+
+  /* ================= RENDER ALL ================= */
+  function renderAll(){
+    renderWallboard();
+    renderSummary();
+    renderTable();
+  }
+
+  // Inicializa buscando as informações do banco
+  carregarDadosDoBanco();
+  loadTechniciansFromDB();
+
+  // Escuta mudanças em tempo real: quando qualquer pessoa lançar/excluir
+  // um atendimento, atualiza a tela automaticamente para todo mundo
+  supabase.channel("atendimentos-realtime")
+    .on("postgres_changes", { event: "*", schema: "public", table: "atendimentos" }, ()=>{
+      carregarDadosDoBanco();
+    })
+    .subscribe();
+
+  /* ================= NAVEGAÇÃO POR ABAS ================= */
+  const navTabs = document.querySelectorAll(".tab-btn");
+  const views = document.querySelectorAll(".view");
+  navTabs.forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      navTabs.forEach(b=> b.classList.remove("active"));
+      btn.classList.add("active");
+      const target = btn.dataset.view;
+      views.forEach(v=> v.hidden = (v.id !== "view-"+target));
+    });
+  });
+
+  /* ================= CHIPS DE BASE (FILTRO RÁPIDO) ================= */
+  const baseChips = document.querySelectorAll(".base-chip");
+  baseChips.forEach(chip=>{
+    chip.addEventListener("click", ()=>{
+      baseChips.forEach(c=> c.classList.remove("active"));
+      chip.classList.add("active");
+      filterBase.value = chip.dataset.base || "";
+      renderTable();
+    });
+  });
+
+  /* ================= ÁREA RESTRITA — SENHA PARA SUBIR A PLANILHA =================
+     Proteção simples de front-end: impede o uso casual por quem não tem a senha.
+     Não é uma segurança "à prova de bala" (o código roda no navegador de quem
+     acessa), mas evita que qualquer pessoa do time mexa na base por engano.
+     Para trocar a senha, edite o valor de ADMIN_PASSWORD abaixo. */
+  const ADMIN_PASSWORD = "FFA2026";
+  const lockScreen = document.getElementById("lockScreen");
+  const uploadArea = document.getElementById("uploadArea");
+  const unlockBtn = document.getElementById("unlockBtn");
+  const unlockPass = document.getElementById("unlockPass");
+  const unlockMsg = document.getElementById("unlockMsg");
+
+  function isAdminUnlocked(){
+    return localStorage.getItem("ffa_admin_unlocked") === "1";
+  }
+  function showUnlockedUI(){
+    if(lockScreen) lockScreen.style.display = "none";
+    if(uploadArea) uploadArea.style.display = "block";
+    document.querySelectorAll(".admin-only").forEach(el=> el.classList.add("unlocked"));
+  }
+  if(isAdminUnlocked()) showUnlockedUI();
+
+  if(unlockBtn){
+    unlockBtn.addEventListener("click", ()=>{
+      if(unlockPass.value === ADMIN_PASSWORD){
+        localStorage.setItem("ffa_admin_unlocked", "1");
+        showUnlockedUI();
+      } else {
+        unlockMsg.textContent = "Senha incorreta.";
+        unlockMsg.className = "status-msg err";
+      }
+    });
+    unlockPass.addEventListener("keydown", (e)=>{ if(e.key === "Enter") unlockBtn.click(); });
+  }
+
+  /* ================= RESUMO DO DIA (card lateral) ================= */
+  function renderResumoCard(){
+    const todays = records.filter(r=> r.date === todayISO());
+    const totalEl = document.getElementById("resumoTotal");
+    if(totalEl) totalEl.textContent = todays.length;
+    STATUS_LIST.forEach(st=>{
+      const c = todays.filter(r=> r.status === st).length;
+      const node = document.getElementById("resumo-"+STATUS_CLASS[st]);
+      if(node) node.textContent = c;
+    });
+  }
+  const _originalRenderAll = renderAll;
+  renderAll = function(){
+    _originalRenderAll();
+    renderResumoCard();
+  };
+  renderResumoCard();
+
+  /* ================= FINALIZAR E NOTIFICAR SUPERVISORES =================
+     Pronto para ligar assim que o serviço de envio de e-mail (ex: EmailJS)
+     estiver configurado — hoje o clique confirma a intenção mas ainda não
+     dispara e-mails de verdade. */
+  const finalizeBtn = document.getElementById("finalizeBtn");
+  const finalizeMsg = document.getElementById("finalizeMsg");
+  if(finalizeBtn){
+    finalizeBtn.addEventListener("click", ()=>{
+      if(!isAdminUnlocked()){
+        finalizeMsg.textContent = "Apenas o administrador pode enviar as notificações.";
+        finalizeMsg.className = "status-msg err";
+        return;
+      }
+      finalizeMsg.textContent = "Envio de e-mail ainda não configurado. Assim que o serviço de e-mail estiver pronto, este botão vai notificar os supervisores selecionados.";
+      finalizeMsg.className = "status-msg info";
+    });
+  }
+
+})();
+
+</script>
+</body>
+</html>
