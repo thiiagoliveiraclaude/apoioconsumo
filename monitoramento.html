@@ -91,31 +91,33 @@
   .pill b{color:#fff; font-weight:700;}
   .pill .dot{width:7px;height:7px;border-radius:50%; background:#3fce8a; box-shadow:0 0 8px #3fce8a; flex-shrink:0;}
 
-  /* filter chips band — visível apenas no Painel Geral */
+  /* filter chips — barra clara no topo do Painel Geral */
   .chips-band{
-    background:var(--navy-2);
-    border-top:1px solid rgba(255,255,255,.06);
-    border-bottom:1px solid rgba(255,255,255,.06);
-    display:none;
+    background:#fff; border:1px solid var(--line); border-radius:var(--radius);
+    margin-bottom:22px;
+    box-shadow:0 1px 2px rgba(43,39,89,.04);
   }
-  .chips-band.visible{display:block;}
-  .chips-hint{font-size:10.5px; color:rgba(255,255,255,.4); white-space:nowrap;}
   .chips-inner{
-    max-width:1440px; margin:0 auto; padding:14px 28px;
-    display:flex; align-items:center; gap:24px; flex-wrap:wrap;
+    padding:14px 20px;
+    display:flex; align-items:center; gap:20px; flex-wrap:wrap;
   }
   .chips-group{display:flex; align-items:center; gap:10px; flex-wrap:wrap;}
   .chips-label{
     font-size:10.5px; letter-spacing:.8px; text-transform:uppercase;
-    color:rgba(255,255,255,.45); font-weight:600; white-space:nowrap;
+    color:var(--muted); font-weight:600; white-space:nowrap;
   }
+  .chips-hint{font-size:10.5px; color:var(--muted); opacity:.75; white-space:nowrap;}
   .base-chip{
-    background:var(--red); color:#fff; border:1.5px solid transparent;
+    background:#fff; color:var(--navy); border:1.5px solid var(--line);
     padding:7px 14px; border-radius:999px; font-size:12.5px; font-weight:600;
-    cursor:pointer; transition:filter .15s, box-shadow .15s; white-space:nowrap;
+    cursor:pointer; transition:all .15s; white-space:nowrap;
+    font-family:'Inter',sans-serif;
   }
-  .base-chip:hover{filter:brightness(1.1);}
-  .base-chip.active{ box-shadow:0 0 0 2px rgba(255,255,255,.55); }
+  .base-chip:hover{border-color:var(--red); color:var(--red);}
+  .base-chip.active{
+    background:var(--red); color:#fff; border-color:var(--red);
+    box-shadow:0 4px 10px -4px rgba(190,30,40,.5);
+  }
 
   /* tab bar */
   .tab-bar{
@@ -374,28 +376,6 @@
     </div>
   </div>
 
-  <div class="chips-band" id="chipsBand">
-    <div class="chips-inner">
-      <div class="chips-group">
-        <span class="chips-label">Filtrar por base</span>
-        <span class="chips-hint">· clique = 1 base · Ctrl + clique = várias</span>
-      </div>
-      <div class="chips-group" id="baseChipsGroup">
-        <button class="base-chip active" data-base="">Todas</button>
-        <button class="base-chip" data-base="Campo Grande">Campo Grande</button>
-        <button class="base-chip" data-base="Niterói">Niterói</button>
-        <button class="base-chip" data-base="Petrópolis">Petrópolis</button>
-        <button class="base-chip" data-base="Campos dos Goytacazes">Campos dos Goytacazes</button>
-        <button class="base-chip" data-base="Olaria">Olaria</button>
-        <button class="base-chip" data-base="Teresópolis">Teresópolis</button>
-        <button class="base-chip" data-base="São Pedro da Aldeia">São Pedro da Aldeia</button>
-        <button class="base-chip" data-base="Nova Friburgo">Nova Friburgo</button>
-        <button class="base-chip" data-base="Macaé">Macaé</button>
-        <button class="base-chip" data-base="Rio das Ostras">Rio das Ostras</button>
-      </div>
-    </div>
-  </div>
-
   <div class="tab-bar">
     <button class="tab-btn active" data-view="registrar">Registrar Atendimento</button>
     <button class="tab-btn" data-view="painel">Painel Geral</button>
@@ -466,6 +446,28 @@
       <div style="text-align:right;">
         <button class="btn" id="finalizeBtn">Finalizar e notificar supervisores</button>
         <div class="status-msg" id="finalizeMsg" style="margin-top:10px; justify-content:flex-end;"></div>
+      </div>
+    </div>
+
+    <div class="chips-band" id="chipsBand">
+      <div class="chips-inner">
+        <div class="chips-group">
+          <span class="chips-label">Filtrar por base</span>
+          <span class="chips-hint">· clique = 1 base · Ctrl + clique = várias</span>
+        </div>
+        <div class="chips-group" id="baseChipsGroup">
+          <button class="base-chip active" data-base="">Todas</button>
+          <button class="base-chip" data-base="Campo Grande">Campo Grande</button>
+          <button class="base-chip" data-base="Niterói">Niterói</button>
+          <button class="base-chip" data-base="Petrópolis">Petrópolis</button>
+          <button class="base-chip" data-base="Campos dos Goytacazes">Campos dos Goytacazes</button>
+          <button class="base-chip" data-base="Olaria">Olaria</button>
+          <button class="base-chip" data-base="Teresópolis">Teresópolis</button>
+          <button class="base-chip" data-base="São Pedro da Aldeia">São Pedro da Aldeia</button>
+          <button class="base-chip" data-base="Nova Friburgo">Nova Friburgo</button>
+          <button class="base-chip" data-base="Macaé">Macaé</button>
+          <button class="base-chip" data-base="Rio das Ostras">Rio das Ostras</button>
+        </div>
       </div>
     </div>
 
@@ -1104,14 +1106,12 @@
      Os chips de filtro por base só aparecem quando o Painel Geral está ativo. */
   const navTabs = document.querySelectorAll(".tab-btn");
   const views = document.querySelectorAll(".view");
-  const chipsBand = document.getElementById("chipsBand");
 
   function activateTab(btn){
     navTabs.forEach(b=> b.classList.remove("active"));
     btn.classList.add("active");
     const target = btn.dataset.view;
     views.forEach(v=> v.hidden = (v.id !== "view-"+target));
-    chipsBand.classList.toggle("visible", target === "painel");
   }
   navTabs.forEach(btn=>{
     btn.addEventListener("click", ()=>{
