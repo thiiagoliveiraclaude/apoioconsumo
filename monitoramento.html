@@ -8,6 +8,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root{
     --navy: #2b2759;
@@ -329,6 +330,20 @@
   .view-head-row{display:flex; align-items:flex-start; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:22px;}
   .view-head-row .view-head{margin-bottom:0;}
 
+  /* coluna do botão "Finalizar e notificar": largura fixa para que a mensagem
+     de status NÃO empurre/desloque o botão quando aparecer */
+  .finalize-col{
+    flex:0 0 330px; width:330px; max-width:100%;
+    display:flex; flex-direction:column; align-items:flex-end;
+  }
+  .finalize-col .btn{white-space:nowrap;}
+  .finalize-col .status-msg{
+    display:block; text-align:right; margin-top:10px;
+    min-height:18px; line-height:1.45; width:100%;
+    overflow-wrap:anywhere;
+  }
+  .btn.is-loading{opacity:.75; cursor:progress;}
+
   /* modal de upload da base (aberto pelo cabeçalho) */
   .modal-overlay{
     position:fixed; inset:0; background:rgba(20,16,50,.55); z-index:100;
@@ -443,9 +458,9 @@
         <h2>Painel geral</h2>
         <p>Mostra apenas os atendimentos de hoje. Use o filtro de data na tabela para consultar dias anteriores.</p>
       </div>
-      <div style="text-align:right;">
+      <div class="finalize-col">
         <button class="btn" id="finalizeBtn">Finalizar e notificar supervisores</button>
-        <div class="status-msg" id="finalizeMsg" style="margin-top:10px; justify-content:flex-end;"></div>
+        <div class="status-msg" id="finalizeMsg"></div>
       </div>
     </div>
 
@@ -565,9 +580,13 @@
 (function(){
   "use strict";
 
-  // CREDENCIAIS DO BANCO DE DADOS (CONFIGURADO CORRETAMENTE)
-  const SUPABASE_URL = "https://otktqaqcwfsbjcxgaawn.supabase.co";
-  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im90a3RxYXFjd2ZzYmpjeGdhYXduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMwMDc2MDEsImV4cCI6MjA5ODU4MzYwMX0.BrW2fHIKW4dWkaR4cgc38dZDbRbaTo5Dm2YfvavEZKA";
+  // ===================== CREDENCIAIS DO SUPABASE =====================
+  // Projeto: Projeto thiiagoliveiraClaude (vxytwdpjltxwatfgdpjz)
+  // A chave abaixo é a PUBLICÁVEL / ANON — pode ficar no navegador.
+  // Pegue em: Settings -> API Keys -> Publishable key (ou anon public).
+  // NUNCA cole aqui a chave "secret" / "service_role".
+  const SUPABASE_URL = "https://vxytwdpjltxwatfgdpjz.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_I2tlAqbOb9crCGWEjQwvWA_EXGEE2jC";
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const BASES = ["Campo Grande","Niterói","Petrópolis","Campos dos Goytacazes","Olaria","Teresópolis","São Pedro da Aldeia","Nova Friburgo","Macaé","Rio das Ostras"];
@@ -1171,20 +1190,180 @@
   });
 
   /* ================= FINALIZAR E NOTIFICAR SUPERVISORES =================
-     Fixo no Painel Geral. Pronto para ligar assim que o serviço de envio de
-     e-mail (ex: EmailJS) estiver configurado — hoje o clique confirma a
-     intenção mas ainda não dispara e-mails de verdade. */
+     Para cada base selecionada nos chips (ou todas, se nenhum chip específico
+     estiver marcado) monta:
+       1. um XLSX com os registros de hoje daquela base;
+       2. um "retrato" (PNG) com o cartão da base + o resumo por status;
+     e envia para a Edge Function 'notificar-supervisores' do Supabase, que
+     dispara o e-mail por SMTP. Os destinatários ficam no servidor (Edge
+     Function), não aqui no navegador. */
+
+  // Bases que possuem destinatários configurados na Edge Function.
+  const BASES_COM_ENVIO = ["Campo Grande","Niterói","Petrópolis","Campos dos Goytacazes"];
+
   const finalizeBtn = document.getElementById("finalizeBtn");
   const finalizeMsg = document.getElementById("finalizeMsg");
+
+  function setFinalizeMsg(txt, type){
+    finalizeMsg.textContent = txt;
+    finalizeMsg.className = "status-msg " + (type || "info");
+  }
+
+  /* --- XLSX (base64) com os registros de hoje da base --- */
+  function buildXlsxBase64(base){
+    const recs = records
+      .filter(r=> r.base === base && r.date === todayISO())
+      .sort((a,b)=> String(a.hora).localeCompare(String(b.hora)));
+    const rows = recs.map(r=>({
+      "Data": fmtDate(r.date),
+      "Base": r.base,
+      "Técnico": r.technician,
+      "Status": r.status,
+      "Hora do atendimento": r.hora
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{"Data":"","Base":base,"Técnico":"","Status":"","Hora do atendimento":""}]);
+    ws["!cols"] = [{wch:12},{wch:24},{wch:34},{wch:16},{wch:20}];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Registros");
+    return { b64: XLSX.write(wb, {bookType:"xlsx", type:"base64"}), total: recs.length };
+  }
+
+  /* --- Retrato (PNG base64): cartão da base + resumo por status --- */
+  async function buildRetratoBase64(base){
+    const recs = records.filter(r=> r.base === base && r.date === todayISO());
+    const STATUS_ORDER = ["Coletado","Não Coletado","Bloqueado","Falta","Folga"];
+    const byStatus = {};
+    recs.forEach(r=> byStatus[r.status] = (byStatus[r.status]||0)+1);
+    const total = recs.length;
+
+    const chips = Object.keys(byStatus).map(st=>{
+      const color = "var(" + STATUS_COLOR_VAR[st] + ")";
+      return '<span class="chip" style="color:'+color+'; border-color:'+color+'55;">'+st+' · '+byStatus[st]+'</span>';
+    }).join("");
+    const bar = total ? STATUS_ORDER.filter(st=> byStatus[st]).map(st=>{
+      const pct = (byStatus[st]/total*100).toFixed(1);
+      return '<span style="width:'+pct+'%; background:var('+STATUS_COLOR_VAR[st]+');"></span>';
+    }).join("") : "";
+    const sumCards = STATUS_ORDER.map(st=>
+      '<div class="sum-card"><div class="s-label"><span class="s-dot" style="background:var('+STATUS_COLOR_VAR[st]+')"></span>'+st+'</div>' +
+      '<div class="s-value mono">'+(byStatus[st]||0)+'</div></div>'
+    ).join("");
+
+    const node = document.createElement("div");
+    node.style.cssText = "position:fixed; left:-10000px; top:0; width:760px; padding:24px; background:#fff;";
+    node.innerHTML =
+      '<div style="font-family:\'Space Grotesk\',sans-serif; font-size:18px; font-weight:600; color:var(--navy); margin-bottom:4px;">'+base+'</div>' +
+      '<div style="font-size:12px; color:var(--muted); margin-bottom:18px;">Monitoramento de técnicos · '+fmtDate(todayISO())+'</div>' +
+      '<div class="wallboard" style="grid-template-columns:1fr; margin-bottom:18px;">' +
+        '<div class="base-card'+(total ? ' has-data' : '')+'">' +
+          '<div class="b-name">'+base+'</div>' +
+          '<div class="b-count mono">'+total+'<span>atend.</span></div>' +
+          '<div class="b-bar">'+bar+'</div>' +
+          '<div class="b-breakdown">'+(chips || '<span class="chip">sem registros</span>')+'</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="summary-row" style="margin-bottom:0;">'+sumCards+'</div>';
+
+    document.body.appendChild(node);
+    try{
+      const canvas = await html2canvas(node, {backgroundColor:"#ffffff", scale:2, logging:false});
+      return canvas.toDataURL("image/png").split(",")[1];
+    } finally {
+      node.remove();
+    }
+  }
+
+  function corpoEmail(base, total){
+    return ''
+      + '<div style="font-family:Arial,Helvetica,sans-serif; font-size:14px; color:#211d3d;">'
+      +   '<p>Prezados,</p>'
+      +   '<p>Segue o fechamento do monitoramento de técnicos da base <b>'+base+'</b> '
+      +     'referente ao dia <b>'+fmtDate(todayISO())+'</b>, com <b>'+total+'</b> atendimento(s) registrado(s).</p>'
+      +   '<p><img src="cid:retrato" alt="Retrato da região — '+base+'" style="max-width:760px; width:100%; border:1px solid #e4e1ee; border-radius:8px;"></p>'
+      +   '<p>Em anexo, a planilha com todos os registros do dia desta base.</p>'
+      +   '<p style="color:#6e6a92; font-size:12px; margin-top:24px;">Mensagem gerada automaticamente pelo Painel de Monitoramento de Técnicos — FFA Infraestrutura.</p>'
+      + '</div>';
+  }
+
+  async function enviarBase(base){
+    const { b64: xlsxBase64, total } = buildXlsxBase64(base);
+    const retratoBase64 = await buildRetratoBase64(base);
+    const slug = normalize(base).replace(/[^a-z0-9]+/g,"_");
+
+    const resp = await fetch(SUPABASE_URL + "/functions/v1/notificar-supervisores", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + SUPABASE_KEY,
+        "apikey": SUPABASE_KEY
+      },
+      body: JSON.stringify({
+        base: base,
+        data: todayISO(),
+        total: total,
+        html: corpoEmail(base, total),
+        xlsxBase64: xlsxBase64,
+        xlsxFilename: "pod_" + slug + "_" + todayISO() + ".xlsx",
+        retratoBase64: retratoBase64
+      })
+    });
+
+    let json = null;
+    try{ json = await resp.json(); }catch(e){}
+    if(!resp.ok || (json && json.error)){
+      throw new Error((json && json.error) || ("HTTP " + resp.status));
+    }
+    return true;
+  }
+
   if(finalizeBtn){
-    finalizeBtn.addEventListener("click", ()=>{
+    finalizeBtn.addEventListener("click", async ()=>{
       if(!ensureAdmin()){
-        finalizeMsg.textContent = "Apenas o administrador pode enviar as notificações.";
-        finalizeMsg.className = "status-msg err";
+        setFinalizeMsg("Apenas o administrador pode enviar as notificações.", "err");
         return;
       }
-      finalizeMsg.textContent = "Envio de e-mail ainda não configurado. Assim que o serviço de e-mail estiver pronto, este botão vai notificar os supervisores selecionados.";
-      finalizeMsg.className = "status-msg info";
+
+      // Respeita os chips: nenhum chip específico = todas as bases com envio configurado
+      const alvo = (selectedBases.size === 0)
+        ? BASES_COM_ENVIO.slice()
+        : BASES_COM_ENVIO.filter(b=> selectedBases.has(b));
+
+      const semEnvio = [...selectedBases].filter(b=> !BASES_COM_ENVIO.includes(b));
+
+      if(!alvo.length){
+        setFinalizeMsg("Nenhuma das bases selecionadas possui destinatários configurados.", "err");
+        return;
+      }
+
+      const conf = window.confirm(
+        "Enviar o fechamento de " + fmtDate(todayISO()) + " para:\n\n· " +
+        alvo.join("\n· ") + "\n\nConfirmar envio?"
+      );
+      if(!conf) return;
+
+      finalizeBtn.disabled = true;
+      finalizeBtn.classList.add("is-loading");
+
+      const ok = [], falhou = [];
+      for(let i=0; i<alvo.length; i++){
+        setFinalizeMsg("Enviando " + (i+1) + " de " + alvo.length + " — " + alvo[i] + "…", "info");
+        try{
+          await enviarBase(alvo[i]);
+          ok.push(alvo[i]);
+        }catch(err){
+          console.error("Falha ao enviar", alvo[i], err);
+          falhou.push(alvo[i] + " (" + err.message + ")");
+        }
+      }
+
+      finalizeBtn.disabled = false;
+      finalizeBtn.classList.remove("is-loading");
+
+      let msg = "";
+      if(ok.length) msg += "E-mail enviado: " + ok.join(", ") + ".";
+      if(falhou.length) msg += (msg ? " " : "") + "Falha: " + falhou.join("; ") + ".";
+      if(semEnvio.length) msg += " Sem destinatários configurados: " + semEnvio.join(", ") + ".";
+      setFinalizeMsg(msg, falhou.length ? "err" : "ok");
     });
   }
 
