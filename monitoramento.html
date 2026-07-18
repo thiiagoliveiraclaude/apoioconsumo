@@ -459,7 +459,7 @@
         <p>Mostra apenas os atendimentos de hoje. Use o filtro de data na tabela para consultar dias anteriores.</p>
       </div>
       <div class="finalize-col">
-        <button class="btn" id="finalizeBtn">Finalizar e notificar supervisores</button>
+        <button class="btn" id="finalizeBtn">Finalizar e gerar e-mails</button>
         <div class="status-msg" id="finalizeMsg"></div>
       </div>
     </div>
@@ -1469,14 +1469,14 @@
     if(e.key === "Escape") uploadModal.classList.remove("open");
   });
 
-  /* ================= FINALIZAR E NOTIFICAR SUPERVISORES =================
+  /* ================= FINALIZAR: GERA OS E-MAILS (.eml) =================
      Para cada base selecionada nos chips (ou todas, se nenhum chip específico
-     estiver marcado) monta:
-       1. um XLSX com os registros de hoje daquela base;
-       2. um "retrato" (PNG) com o cartão da base + o resumo por status;
-     e envia para a Edge Function 'notificar-supervisores' do Supabase, que
-     dispara o e-mail por SMTP. Os destinatários ficam no servidor (Edge
-     Function), não aqui no navegador. */
+     estiver marcado) monta um arquivo .eml contendo:
+       1. destinatários, cópias e assunto já preenchidos;
+       2. o "retrato" (cartão da base + resumo) embutido no corpo;
+       3. a planilha XLSX do dia daquela base anexada.
+     O arquivo baixa; ao abrir, o Outlook mostra a mensagem pronta e basta
+     clicar em Enviar. Não depende de SMTP, servidor ou internet corporativa. */
 
   // Bases que possuem destinatários configurados na Edge Function.
   const BASES_COM_ENVIO = ["Campo Grande","Niterói","Petrópolis","Campos dos Goytacazes"];
@@ -1565,49 +1565,133 @@
       + '</div>';
   }
 
-  async function enviarBase(base){
-    const { b64: xlsxBase64, total } = buildXlsxBase64(base);
-    const retratoBase64 = await buildRetratoBase64(base);
-    const slug = normalize(base).replace(/[^a-z0-9]+/g,"_");
-
-    const resp = await fetch(SUPABASE_URL + "/functions/v1/notificar-supervisores", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer " + SUPABASE_KEY,
-        "apikey": SUPABASE_KEY
-      },
-      body: JSON.stringify({
-        base: base,
-        data: todayISO(),
-        total: total,
-        html: corpoEmail(base, total),
-        xlsxBase64: xlsxBase64,
-        xlsxFilename: "pod_" + slug + "_" + todayISO() + ".xlsx",
-        retratoBase64: retratoBase64
-      })
-    });
-
-    let json = null;
-    try{ json = await resp.json(); }catch(e){}
-    if(!resp.ok || (json && json.error)){
-      throw new Error((json && json.error) || ("HTTP " + resp.status));
+  /* ---------- Destinatários por base (usados para montar o .eml) ---------- */
+  const CC_PADRAO = [
+    "thiagosouza@ffainfraestrutura.com.br",
+    "juliabrum@ffainfraestrutura.com.br",
+    "rhayaneferreira@ffainfraestrutura.com.br",
+    "victorrodrigues@ffainfraestrutura.com.br",
+    "luisjunior@ffainfraestrutura.com.br",
+    "marciomattos@ffainfraestrutura.com.br"
+  ];
+  const DESTINATARIOS = {
+    "Campo Grande": {
+      to: ["marcelorodrigues@ffainfraestrutura.com.br"],
+      cc: CC_PADRAO
+    },
+    "Niterói": {
+      to: ["juliocesarcardoso@ffainfraestrutura.com.br","marcusgama@ffainfraestrutura.com.br"],
+      cc: CC_PADRAO.concat(["carloslopes@ffainfraestrutura.com.br"])
+    },
+    "Campos dos Goytacazes": {
+      to: ["carlosbonfim@ffainfraestrutura.com.br"],
+      cc: CC_PADRAO.concat(["carloslopes@ffainfraestrutura.com.br"])
+    },
+    "Petrópolis": {
+      to: ["ruanmathias@ffainfraestrutura.com.br"],
+      cc: CC_PADRAO
     }
-    return true;
+  };
+
+  /* ---------- utilitários de MIME ---------- */
+  function b64Utf8(str){
+    const bytes = new TextEncoder().encode(str);
+    let bin = "";
+    const chunk = 0x8000;
+    for(let i=0; i<bytes.length; i+=chunk){
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+    }
+    return btoa(bin);
+  }
+  // Base64 em linhas de 76 caracteres, como manda o padrão MIME
+  function wrap76(b64){
+    return (b64.match(/.{1,76}/g) || []).join("\r\n");
+  }
+  // Assunto com acento precisa ser codificado (RFC 2047)
+  function encodeSubject(txt){
+    return "=?UTF-8?B?" + b64Utf8(txt) + "?=";
+  }
+
+  /* ---------- monta o arquivo .eml de uma base ----------
+     X-Unsent: 1 faz o Outlook abrir como rascunho pronto para enviar,
+     em vez de abrir como mensagem já recebida. */
+  async function buildEml(base){
+    const cfg = DESTINATARIOS[base];
+    const { b64: xlsxB64, total } = buildXlsxBase64(base);
+    const retratoB64 = await buildRetratoBase64(base);
+    const slug = normalize(base).replace(/[^a-z0-9]+/g,"_");
+    const xlsxNome = "pod_" + slug + "_" + todayISO() + ".xlsx";
+
+    const bMix = "----mix_" + Date.now();
+    const bRel = "----rel_" + Date.now();
+    const CRLF = "\r\n";
+
+    const partes = [];
+    partes.push("To: " + cfg.to.join(", "));
+    partes.push("Cc: " + cfg.cc.join(", "));
+    partes.push("Subject: " + encodeSubject("POD - BASE VOLANTE - " + base.toUpperCase()));
+    partes.push("X-Unsent: 1");
+    partes.push("MIME-Version: 1.0");
+    partes.push('Content-Type: multipart/mixed; boundary="' + bMix + '"');
+    partes.push("");
+
+    // corpo HTML + imagem embutida
+    partes.push("--" + bMix);
+    partes.push('Content-Type: multipart/related; boundary="' + bRel + '"');
+    partes.push("");
+
+    partes.push("--" + bRel);
+    partes.push('Content-Type: text/html; charset="UTF-8"');
+    partes.push("Content-Transfer-Encoding: base64");
+    partes.push("");
+    partes.push(wrap76(b64Utf8(corpoEmail(base, total))));
+    partes.push("");
+
+    partes.push("--" + bRel);
+    partes.push("Content-Type: image/png");
+    partes.push("Content-Transfer-Encoding: base64");
+    partes.push("Content-ID: <retrato>");
+    partes.push('Content-Disposition: inline; filename="retrato.png"');
+    partes.push("");
+    partes.push(wrap76(retratoB64));
+    partes.push("");
+    partes.push("--" + bRel + "--");
+    partes.push("");
+
+    // planilha anexada
+    partes.push("--" + bMix);
+    partes.push('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="' + xlsxNome + '"');
+    partes.push("Content-Transfer-Encoding: base64");
+    partes.push('Content-Disposition: attachment; filename="' + xlsxNome + '"');
+    partes.push("");
+    partes.push(wrap76(xlsxB64));
+    partes.push("");
+    partes.push("--" + bMix + "--");
+
+    const eml = partes.join(CRLF);
+    return { blob: new Blob([eml], {type:"message/rfc822"}), nome: "POD - BASE VOLANTE - " + base.toUpperCase() + ".eml", total: total };
+  }
+
+  function baixarBlob(blob, nome){
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = nome;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=> URL.revokeObjectURL(a.href), 4000);
   }
 
   if(finalizeBtn){
     finalizeBtn.addEventListener("click", async ()=>{
       if(!ensureAdmin()){
-        setFinalizeMsg("Apenas o administrador pode enviar as notificações.", "err");
+        setFinalizeMsg("Apenas o administrador pode gerar as notificações.", "err");
         return;
       }
 
-      // Respeita os chips: nenhum chip específico = todas as bases com envio configurado
       const alvo = (selectedBases.size === 0)
         ? BASES_COM_ENVIO.slice()
         : BASES_COM_ENVIO.filter(b=> selectedBases.has(b));
-
       const semEnvio = [...selectedBases].filter(b=> !BASES_COM_ENVIO.includes(b));
 
       if(!alvo.length){
@@ -1615,23 +1699,19 @@
         return;
       }
 
-      const conf = window.confirm(
-        "Enviar o fechamento de " + fmtDate(todayISO()) + " para:\n\n· " +
-        alvo.join("\n· ") + "\n\nConfirmar envio?"
-      );
-      if(!conf) return;
-
       finalizeBtn.disabled = true;
       finalizeBtn.classList.add("is-loading");
 
       const ok = [], falhou = [];
       for(let i=0; i<alvo.length; i++){
-        setFinalizeMsg("Enviando " + (i+1) + " de " + alvo.length + " — " + alvo[i] + "…", "info");
+        setFinalizeMsg("Gerando " + (i+1) + " de " + alvo.length + " — " + alvo[i] + "…", "info");
         try{
-          await enviarBase(alvo[i]);
+          const { blob, nome } = await buildEml(alvo[i]);
+          baixarBlob(blob, nome);
           ok.push(alvo[i]);
+          await new Promise(r=> setTimeout(r, 700));   // evita o navegador barrar downloads em sequência
         }catch(err){
-          console.error("Falha ao enviar", alvo[i], err);
+          console.error("Falha ao gerar", alvo[i], err);
           falhou.push(alvo[i] + " (" + err.message + ")");
         }
       }
@@ -1640,9 +1720,9 @@
       finalizeBtn.classList.remove("is-loading");
 
       let msg = "";
-      if(ok.length) msg += "E-mail enviado: " + ok.join(", ") + ".";
+      if(ok.length) msg += ok.length + " e-mail(s) gerado(s): " + ok.join(", ") + ". Abra os arquivos e clique em Enviar no Outlook.";
       if(falhou.length) msg += (msg ? " " : "") + "Falha: " + falhou.join("; ") + ".";
-      if(semEnvio.length) msg += " Sem destinatários configurados: " + semEnvio.join(", ") + ".";
+      if(semEnvio.length) msg += " Sem destinatários: " + semEnvio.join(", ") + ".";
       setFinalizeMsg(msg, falhou.length ? "err" : "ok");
     });
   }
