@@ -494,6 +494,45 @@
     <div class="summary-row" id="summaryRow"></div>
     <div class="wallboard" id="wallboard"></div>
 
+    <!-- ===== REINCIDÊNCIA: técnicos com status diferente de Coletado ===== -->
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <div class="table-head-actions">
+        <div>
+          <h3>Reincidência por técnico</h3>
+          <p style="margin:4px 0 0; font-size:12px; color:var(--muted);">Técnicos com status diferente de "Coletado". Respeita o filtro de base.</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <select id="reincPeriod" style="width:auto; padding:7px 11px; font-size:12.5px;">
+            <option value="7">Últimos 7 dias</option>
+            <option value="30" selected>Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="0">Todo o histórico</option>
+          </select>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); white-space:nowrap; cursor:pointer;">
+            <input type="checkbox" id="reincIgnoraFolga" checked style="width:auto; margin:0;"> Ignorar Folga
+          </label>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:36px;">#</th>
+              <th>Técnico</th>
+              <th>Base(s)</th>
+              <th style="width:90px;">Ocorrências</th>
+              <th>Detalhe</th>
+              <th style="width:110px;">Última</th>
+            </tr>
+          </thead>
+          <tbody id="reincBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="reincEmpty" style="display:none;">
+        <p>Nenhuma ocorrência no período selecionado.</p>
+      </div>
+    </div>
+
     <div class="filters-row">
       <div class="field grow">
         <label>Buscar técnico</label>
@@ -1052,6 +1091,78 @@
       records.filter(r=> r.date === todayISO()).length;
   }
 
+  /* ================= REINCIDÊNCIA POR TÉCNICO =================
+     Ranking dos técnicos com status diferente de "Coletado" no período.
+     Respeita o filtro de bases (chips). Folga pode ser ignorada, já que
+     não é ocorrência de fato. */
+  const reincBody = document.getElementById("reincBody");
+  const reincEmpty = document.getElementById("reincEmpty");
+  const reincPeriod = document.getElementById("reincPeriod");
+  const reincIgnoraFolga = document.getElementById("reincIgnoraFolga");
+  const REINC_TOPO = 15;
+
+  [reincPeriod, reincIgnoraFolga].forEach(el=>{
+    el.addEventListener("change", renderReincidencia);
+  });
+
+  function renderReincidencia(){
+    const dias = Number(reincPeriod.value);
+    let corte = "";
+    if(dias > 0){
+      const d = new Date();
+      d.setDate(d.getDate() - (dias - 1));
+      corte = d.toISOString().slice(0,10);
+    }
+
+    const alvo = records.filter(r=>{
+      if(r.status === "Coletado") return false;
+      if(reincIgnoraFolga.checked && r.status === "Folga") return false;
+      if(!baseMatches(r.base)) return false;
+      if(corte && r.date < corte) return false;
+      return true;
+    });
+
+    // agrupa por técnico
+    const mapa = new Map();
+    alvo.forEach(r=>{
+      let t = mapa.get(r.technician);
+      if(!t){
+        t = { nome:r.technician, total:0, bases:new Set(), porStatus:{}, ultima:"" };
+        mapa.set(r.technician, t);
+      }
+      t.total++;
+      t.bases.add(r.base);
+      t.porStatus[r.status] = (t.porStatus[r.status]||0) + 1;
+      if(r.date > t.ultima) t.ultima = r.date;
+    });
+
+    const lista = [...mapa.values()].sort((a,b)=>
+      b.total - a.total || b.ultima.localeCompare(a.ultima) || a.nome.localeCompare(b.nome,'pt-BR')
+    ).slice(0, REINC_TOPO);
+
+    reincBody.innerHTML = "";
+    reincEmpty.style.display = lista.length ? "none" : "block";
+
+    lista.forEach((t, i)=>{
+      const chips = Object.keys(t.porStatus)
+        .sort((a,b)=> t.porStatus[b] - t.porStatus[a])
+        .map(st=>{
+          const color = "var(" + STATUS_COLOR_VAR[st] + ")";
+          return '<span class="chip" style="color:'+color+'; border-color:'+color+'55;">'+st+' · '+t.porStatus[st]+'</span>';
+        }).join(" ");
+
+      const tr = document.createElement("tr");
+      tr.innerHTML =
+        '<td class="mono" style="color:var(--muted);">'+(i+1)+'</td>' +
+        '<td style="font-weight:600;">'+t.nome+'</td>' +
+        '<td style="color:var(--muted); font-size:12.5px;">'+[...t.bases].join(", ")+'</td>' +
+        '<td><b class="mono" style="font-size:15px; color:var(--red);">'+t.total+'</b></td>' +
+        '<td><div style="display:flex; gap:5px; flex-wrap:wrap;">'+chips+'</div></td>' +
+        '<td class="mono" style="color:var(--muted);">'+fmtDate(t.ultima)+'</td>';
+      reincBody.appendChild(tr);
+    });
+  }
+
   /* ================= COPIAR PAINEL COMO IMAGEM =================
      Monta uma versão "para impressão" do painel (resumo + cartões das bases +
      tabela COMPLETA, sem rolagem e sem a coluna Excluir), transforma em PNG e
@@ -1196,6 +1307,7 @@
     renderWallboard();
     renderSummary();
     renderTable();
+    renderReincidencia();
   }
 
   // Inicializa buscando as informações do banco
