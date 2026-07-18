@@ -520,7 +520,11 @@
     <div class="table-wrap">
       <div class="table-head-actions">
         <h3 id="tableCount">0 registros</h3>
-        <button class="btn small" id="exportBtn">Exportar planilha</button>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="status-msg" id="copyMsg"></span>
+          <button class="btn small ghost" id="copyPanelBtn">Copiar painel</button>
+          <button class="btn small" id="exportBtn">Exportar planilha</button>
+        </div>
       </div>
       <div class="table-scroll">
         <table>
@@ -1046,6 +1050,116 @@
 
     document.getElementById("statTodayCount").textContent =
       records.filter(r=> r.date === todayISO()).length;
+  }
+
+  /* ================= COPIAR PAINEL COMO IMAGEM =================
+     Monta uma versão "para impressão" do painel (resumo + cartões das bases +
+     tabela COMPLETA, sem rolagem e sem a coluna Excluir), transforma em PNG e
+     coloca na área de transferência. Basta dar Ctrl+V no corpo do e-mail.
+     Respeita os filtros ativos (chips de base, status, data e busca). */
+  const copyPanelBtn = document.getElementById("copyPanelBtn");
+  const copyMsg = document.getElementById("copyMsg");
+
+  function setCopyMsg(txt, type){
+    copyMsg.textContent = txt || "";
+    copyMsg.className = "status-msg " + (type || "info");
+  }
+
+  function buildPanelNode(){
+    const filtered = getFiltered();
+    const dataRef = filterDate.value || todayISO();
+    const basesSel = selectedBases.size ? [...selectedBases] : BASES.filter(baseMatches);
+    const titulo = selectedBases.size ? [...selectedBases].join(" · ") : "Todas as bases";
+
+    // ---- resumo por status (mesma regra do painel) ----
+    const sumCards = STATUS_LIST.map(st=>{
+      const count = records.filter(r=> r.status === st && r.date === todayISO() && baseMatches(r.base)).length;
+      return '<div class="sum-card"><div class="s-label"><span class="s-dot" style="background:var('+STATUS_COLOR_VAR[st]+')"></span>'+st+'</div>' +
+             '<div class="s-value mono">'+count+'</div></div>';
+    }).join("");
+
+    // ---- cartões das bases ----
+    const STATUS_ORDER = ["Coletado","Não Coletado","Bloqueado","Falta","Folga"];
+    const cards = basesSel.map(base=>{
+      const recs = records.filter(r=> r.base === base && r.date === todayISO());
+      const byStatus = {};
+      recs.forEach(r=> byStatus[r.status] = (byStatus[r.status]||0)+1);
+      const total = recs.length;
+      const chips = Object.keys(byStatus).map(st=>{
+        const color = "var(" + STATUS_COLOR_VAR[st] + ")";
+        return '<span class="chip" style="color:'+color+'; border-color:'+color+'55;">'+st+' · '+byStatus[st]+'</span>';
+      }).join("");
+      const bar = total ? STATUS_ORDER.filter(st=> byStatus[st]).map(st=>{
+        const pct = (byStatus[st]/total*100).toFixed(1);
+        return '<span style="width:'+pct+'%; background:var('+STATUS_COLOR_VAR[st]+');"></span>';
+      }).join("") : "";
+      return '<div class="base-card'+(total ? ' has-data' : '')+'">' +
+        '<div class="b-name">'+base+'</div>' +
+        '<div class="b-count mono">'+total+'<span>atend.</span></div>' +
+        '<div class="b-bar">'+bar+'</div>' +
+        '<div class="b-breakdown">'+(chips || '<span class="chip">sem registros</span>')+'</div>' +
+      '</div>';
+    }).join("");
+
+    // ---- tabela completa (todos os registros do filtro) ----
+    const linhas = filtered.map(r=>{
+      const cls = STATUS_CLASS[r.status] || "";
+      return '<tr>' +
+        '<td class="mono">'+fmtDate(r.date)+'</td>' +
+        '<td>'+r.base+'</td>' +
+        '<td>'+r.technician+'</td>' +
+        '<td><span class="badge '+cls+'"><span class="d" style="background:currentColor;"></span>'+r.status+'</span></td>' +
+        '<td class="mono">'+r.hora+'</td>' +
+      '</tr>';
+    }).join("");
+
+    const colunas = Math.min(basesSel.length, 5) || 1;
+
+    const node = document.createElement("div");
+    node.style.cssText = "position:fixed; left:-20000px; top:0; width:1180px; padding:26px; background:#fff;";
+    node.innerHTML =
+      '<div style="font-family:\'Space Grotesk\',sans-serif; font-size:19px; font-weight:600; color:var(--navy);">Monitoramento de técnicos — '+titulo+'</div>' +
+      '<div style="font-size:12.5px; color:var(--muted); margin:5px 0 20px;">'+fmtDate(dataRef)+' · '+filtered.length+(filtered.length===1?' registro':' registros')+'</div>' +
+      '<div class="summary-row" style="grid-template-columns:repeat(5,1fr);">'+sumCards+'</div>' +
+      '<div class="wallboard" style="grid-template-columns:repeat('+colunas+',1fr);">'+cards+'</div>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Data</th><th>Base</th><th>Técnico</th><th>Status</th><th>Hora</th></tr></thead>' +
+        '<tbody>'+(linhas || '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:26px;">Nenhum registro para esse filtro.</td></tr>')+'</tbody>' +
+      '</table></div>';
+    return node;
+  }
+
+  if(copyPanelBtn){
+    copyPanelBtn.addEventListener("click", async ()=>{
+      copyPanelBtn.disabled = true;
+      setCopyMsg("Gerando imagem…", "info");
+      const node = buildPanelNode();
+      document.body.appendChild(node);
+      try{
+        const canvas = await html2canvas(node, {backgroundColor:"#ffffff", scale:2, logging:false});
+        const blob = await new Promise(res=> canvas.toBlob(res, "image/png"));
+
+        try{
+          await navigator.clipboard.write([ new ClipboardItem({ "image/png": blob }) ]);
+          setCopyMsg("Painel copiado! Use Ctrl+V no e-mail.", "ok");
+        }catch(errClip){
+          // Navegador bloqueou o clipboard: baixa o PNG como alternativa
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = "painel_" + todayISO() + ".png";
+          a.click();
+          URL.revokeObjectURL(a.href);
+          setCopyMsg("Cópia bloqueada pelo navegador — imagem baixada.", "info");
+        }
+      }catch(err){
+        console.error(err);
+        setCopyMsg("Erro ao gerar a imagem.", "err");
+      }finally{
+        node.remove();
+        copyPanelBtn.disabled = false;
+        setTimeout(()=> setCopyMsg(""), 6000);
+      }
+    });
   }
 
   /* ================= EXPORT ================= */
