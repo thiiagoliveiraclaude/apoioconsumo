@@ -464,6 +464,47 @@
       </div>
     </div>
 
+    <!-- ===== REINCIDÊNCIA: técnicos com status diferente de Coletado ===== -->
+    <div class="table-wrap" style="margin-bottom:24px;">
+      <div class="table-head-actions">
+        <div>
+          <h3>Reincidência por técnico</h3>
+          <p style="margin:4px 0 0; font-size:12px; color:var(--muted);">Técnicos com status diferente de "Coletado". Respeita o filtro de base.</p>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="status-msg" id="reincCopyMsg"></span>
+          <select id="reincPeriod" style="width:auto; padding:7px 11px; font-size:12.5px;">
+            <option value="7">Últimos 7 dias</option>
+            <option value="30" selected>Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="0">Todo o histórico</option>
+          </select>
+          <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); white-space:nowrap; cursor:pointer;">
+            <input type="checkbox" id="reincIgnoraFolga" checked style="width:auto; margin:0;"> Ignorar Folga
+          </label>
+          <button class="btn small ghost" id="copyReincBtn">Copiar</button>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:36px;">#</th>
+              <th>Técnico</th>
+              <th>Base(s)</th>
+              <th style="width:90px;">Ocorrências</th>
+              <th>Detalhe</th>
+              <th style="width:110px;">Última</th>
+            </tr>
+          </thead>
+          <tbody id="reincBody"></tbody>
+        </table>
+      </div>
+      <div class="empty-state" id="reincEmpty" style="display:none;">
+        <p>Nenhuma ocorrência no período selecionado.</p>
+      </div>
+    </div>
+
     <div class="chips-band" id="chipsBand">
       <div class="chips-inner">
         <div class="chips-group">
@@ -493,45 +534,6 @@
 
     <div class="summary-row" id="summaryRow"></div>
     <div class="wallboard" id="wallboard"></div>
-
-    <!-- ===== REINCIDÊNCIA: técnicos com status diferente de Coletado ===== -->
-    <div class="table-wrap" style="margin-bottom:24px;">
-      <div class="table-head-actions">
-        <div>
-          <h3>Reincidência por técnico</h3>
-          <p style="margin:4px 0 0; font-size:12px; color:var(--muted);">Técnicos com status diferente de "Coletado". Respeita o filtro de base.</p>
-        </div>
-        <div style="display:flex; align-items:center; gap:10px;">
-          <select id="reincPeriod" style="width:auto; padding:7px 11px; font-size:12.5px;">
-            <option value="7">Últimos 7 dias</option>
-            <option value="30" selected>Últimos 30 dias</option>
-            <option value="90">Últimos 90 dias</option>
-            <option value="0">Todo o histórico</option>
-          </select>
-          <label style="display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted); white-space:nowrap; cursor:pointer;">
-            <input type="checkbox" id="reincIgnoraFolga" checked style="width:auto; margin:0;"> Ignorar Folga
-          </label>
-        </div>
-      </div>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:36px;">#</th>
-              <th>Técnico</th>
-              <th>Base(s)</th>
-              <th style="width:90px;">Ocorrências</th>
-              <th>Detalhe</th>
-              <th style="width:110px;">Última</th>
-            </tr>
-          </thead>
-          <tbody id="reincBody"></tbody>
-        </table>
-      </div>
-      <div class="empty-state" id="reincEmpty" style="display:none;">
-        <p>Nenhuma ocorrência no período selecionado.</p>
-      </div>
-    </div>
 
     <div class="filters-row">
       <div class="field grow">
@@ -1099,13 +1101,16 @@
   const reincEmpty = document.getElementById("reincEmpty");
   const reincPeriod = document.getElementById("reincPeriod");
   const reincIgnoraFolga = document.getElementById("reincIgnoraFolga");
+  const copyReincBtn = document.getElementById("copyReincBtn");
+  const reincCopyMsg = document.getElementById("reincCopyMsg");
   const REINC_TOPO = 15;
 
   [reincPeriod, reincIgnoraFolga].forEach(el=>{
     el.addEventListener("change", renderReincidencia);
   });
 
-  function renderReincidencia(){
+  // Calcula o ranking; devolve também o rótulo do período (usado na imagem)
+  function calcReincidencia(){
     const dias = Number(reincPeriod.value);
     let corte = "";
     if(dias > 0){
@@ -1122,7 +1127,6 @@
       return true;
     });
 
-    // agrupa por técnico
     const mapa = new Map();
     alvo.forEach(r=>{
       let t = mapa.get(r.technician);
@@ -1140,26 +1144,103 @@
       b.total - a.total || b.ultima.localeCompare(a.ultima) || a.nome.localeCompare(b.nome,'pt-BR')
     ).slice(0, REINC_TOPO);
 
+    const rotulo = dias > 0
+      ? ("Últimos " + dias + " dias — de " + fmtDate(corte) + " a " + fmtDate(todayISO()))
+      : "Todo o histórico";
+
+    return { lista: lista, rotulo: rotulo, ocorrencias: alvo.length };
+  }
+
+  function reincChips(t){
+    return Object.keys(t.porStatus)
+      .sort((a,b)=> t.porStatus[b] - t.porStatus[a])
+      .map(st=>{
+        const color = "var(" + STATUS_COLOR_VAR[st] + ")";
+        return '<span class="chip" style="color:'+color+'; border-color:'+color+'55;">'+st+' · '+t.porStatus[st]+'</span>';
+      }).join(" ");
+  }
+
+  function reincLinhaHTML(t, i){
+    return '<td class="mono" style="color:var(--muted);">'+(i+1)+'</td>' +
+      '<td style="font-weight:600;">'+t.nome+'</td>' +
+      '<td style="color:var(--muted); font-size:12.5px;">'+[...t.bases].join(", ")+'</td>' +
+      '<td><b class="mono" style="font-size:15px; color:var(--red);">'+t.total+'</b></td>' +
+      '<td><div style="display:flex; gap:5px; flex-wrap:wrap;">'+reincChips(t)+'</div></td>' +
+      '<td class="mono" style="color:var(--muted);">'+fmtDate(t.ultima)+'</td>';
+  }
+
+  function renderReincidencia(){
+    const { lista } = calcReincidencia();
     reincBody.innerHTML = "";
     reincEmpty.style.display = lista.length ? "none" : "block";
-
     lista.forEach((t, i)=>{
-      const chips = Object.keys(t.porStatus)
-        .sort((a,b)=> t.porStatus[b] - t.porStatus[a])
-        .map(st=>{
-          const color = "var(" + STATUS_COLOR_VAR[st] + ")";
-          return '<span class="chip" style="color:'+color+'; border-color:'+color+'55;">'+st+' · '+t.porStatus[st]+'</span>';
-        }).join(" ");
-
       const tr = document.createElement("tr");
-      tr.innerHTML =
-        '<td class="mono" style="color:var(--muted);">'+(i+1)+'</td>' +
-        '<td style="font-weight:600;">'+t.nome+'</td>' +
-        '<td style="color:var(--muted); font-size:12.5px;">'+[...t.bases].join(", ")+'</td>' +
-        '<td><b class="mono" style="font-size:15px; color:var(--red);">'+t.total+'</b></td>' +
-        '<td><div style="display:flex; gap:5px; flex-wrap:wrap;">'+chips+'</div></td>' +
-        '<td class="mono" style="color:var(--muted);">'+fmtDate(t.ultima)+'</td>';
+      tr.innerHTML = reincLinhaHTML(t, i);
       reincBody.appendChild(tr);
+    });
+  }
+
+  // Versão "para colar no e-mail": título, período e tabela sem controles
+  function buildReincNode(){
+    const { lista, rotulo, ocorrencias } = calcReincidencia();
+    const titulo = selectedBases.size ? [...selectedBases].join(" · ") : "Todas as bases";
+
+    const linhas = lista.map((t,i)=> '<tr>'+reincLinhaHTML(t,i)+'</tr>').join("");
+
+    const node = document.createElement("div");
+    node.style.cssText = "position:fixed; left:-20000px; top:0; width:1000px; padding:26px; background:#fff;";
+    node.innerHTML =
+      '<div style="font-family:\'Space Grotesk\',sans-serif; font-size:18px; font-weight:600; color:var(--navy);">Reincidência por técnico — '+titulo+'</div>' +
+      '<div style="font-size:12.5px; color:var(--muted); margin:5px 0 18px;">' +
+        rotulo + ' · ' + ocorrencias + ' ocorrência(s) com status diferente de "Coletado"' +
+        (reincIgnoraFolga.checked ? ' · Folga não contabilizada' : '') +
+      '</div>' +
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th style="width:36px;">#</th><th>Técnico</th><th>Base(s)</th>' +
+        '<th style="width:90px;">Ocorrências</th><th>Detalhe</th><th style="width:110px;">Última</th></tr></thead>' +
+        '<tbody>'+(linhas || '<tr><td colspan="6" style="text-align:center; color:var(--muted); padding:26px;">Nenhuma ocorrência no período.</td></tr>')+'</tbody>' +
+      '</table></div>';
+    return node;
+  }
+
+  /* Copia um nó como imagem PNG para a área de transferência.
+     Se o navegador bloquear o clipboard, baixa o arquivo. */
+  async function copiarNodeComoImagem(node, nomeArquivo, msgEl, btnEl){
+    const setMsg = (txt, type)=>{
+      if(!msgEl) return;
+      msgEl.textContent = txt || "";
+      msgEl.className = "status-msg " + (type || "info");
+    };
+    if(btnEl) btnEl.disabled = true;
+    setMsg("Gerando imagem…", "info");
+    document.body.appendChild(node);
+    try{
+      const canvas = await html2canvas(node, {backgroundColor:"#ffffff", scale:2, logging:false});
+      const blob = await new Promise(res=> canvas.toBlob(res, "image/png"));
+      try{
+        await navigator.clipboard.write([ new ClipboardItem({ "image/png": blob }) ]);
+        setMsg("Copiado! Use Ctrl+V no e-mail.", "ok");
+      }catch(errClip){
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = nomeArquivo;
+        a.click();
+        URL.revokeObjectURL(a.href);
+        setMsg("Cópia bloqueada — imagem baixada.", "info");
+      }
+    }catch(err){
+      console.error(err);
+      setMsg("Erro ao gerar a imagem.", "err");
+    }finally{
+      node.remove();
+      if(btnEl) btnEl.disabled = false;
+      setTimeout(()=> setMsg(""), 6000);
+    }
+  }
+
+  if(copyReincBtn){
+    copyReincBtn.addEventListener("click", ()=>{
+      copiarNodeComoImagem(buildReincNode(), "reincidencia_" + todayISO() + ".png", reincCopyMsg, copyReincBtn);
     });
   }
 
@@ -1241,35 +1322,8 @@
   }
 
   if(copyPanelBtn){
-    copyPanelBtn.addEventListener("click", async ()=>{
-      copyPanelBtn.disabled = true;
-      setCopyMsg("Gerando imagem…", "info");
-      const node = buildPanelNode();
-      document.body.appendChild(node);
-      try{
-        const canvas = await html2canvas(node, {backgroundColor:"#ffffff", scale:2, logging:false});
-        const blob = await new Promise(res=> canvas.toBlob(res, "image/png"));
-
-        try{
-          await navigator.clipboard.write([ new ClipboardItem({ "image/png": blob }) ]);
-          setCopyMsg("Painel copiado! Use Ctrl+V no e-mail.", "ok");
-        }catch(errClip){
-          // Navegador bloqueou o clipboard: baixa o PNG como alternativa
-          const a = document.createElement("a");
-          a.href = URL.createObjectURL(blob);
-          a.download = "painel_" + todayISO() + ".png";
-          a.click();
-          URL.revokeObjectURL(a.href);
-          setCopyMsg("Cópia bloqueada pelo navegador — imagem baixada.", "info");
-        }
-      }catch(err){
-        console.error(err);
-        setCopyMsg("Erro ao gerar a imagem.", "err");
-      }finally{
-        node.remove();
-        copyPanelBtn.disabled = false;
-        setTimeout(()=> setCopyMsg(""), 6000);
-      }
+    copyPanelBtn.addEventListener("click", ()=>{
+      copiarNodeComoImagem(buildPanelNode(), "painel_" + todayISO() + ".png", copyMsg, copyPanelBtn);
     });
   }
 
