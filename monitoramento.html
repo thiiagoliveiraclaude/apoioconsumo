@@ -1479,7 +1479,7 @@
      clicar em Enviar. Não depende de SMTP, servidor ou internet corporativa. */
 
   // Bases que possuem destinatários configurados na Edge Function.
-  const BASES_COM_ENVIO = ["Campo Grande","Niterói","Petrópolis","Campos dos Goytacazes"];
+  const BASES_COM_ENVIO = ["Campo Grande","Niterói","Petrópolis","Campos dos Goytacazes","Olaria","Macaé","Rio das Ostras","Nova Friburgo","Teresópolis"];
 
   const finalizeBtn = document.getElementById("finalizeBtn");
   const finalizeMsg = document.getElementById("finalizeMsg");
@@ -1590,6 +1590,26 @@
     "Petrópolis": {
       to: ["ruanmathias@ffainfraestrutura.com.br"],
       cc: CC_PADRAO
+    },
+    "Olaria": {
+      to: ["dilsonjunior@ffainfraestrutura.com.br","valtersantos@ffainfraestrutura.com.br","fernandosousa@ffainfraestrutura.com.br"],
+      cc: ["marcelofontes@ffainfraestrutura.com.br","thiagosouza@ffainfraestrutura.com.br","romulosampaio@ffainfraestrutura.com.br"]
+    },
+    "Macaé": {
+      to: ["carlosbonfim@ffainfraestrutura.com.br"],
+      cc: CC_PADRAO.concat(["carloslopes@ffainfraestrutura.com.br"])
+    },
+    "Rio das Ostras": {
+      to: ["carlosbonfim@ffainfraestrutura.com.br"],
+      cc: CC_PADRAO.concat(["carloslopes@ffainfraestrutura.com.br"])
+    },
+    "Nova Friburgo": {
+      to: ["ruanmathias@ffainfraestrutura.com.br","wellingtondamasceno@ffainfraestrutura.com.br"],
+      cc: CC_PADRAO.concat(["carloslopes@ffainfraestrutura.com.br"])
+    },
+    "Teresópolis": {
+      to: ["ruanmathias@ffainfraestrutura.com.br","wellingtondamasceno@ffainfraestrutura.com.br"],
+      cc: CC_PADRAO.concat(["carloslopes@ffainfraestrutura.com.br"])
     }
   };
 
