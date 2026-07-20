@@ -402,6 +402,17 @@ select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(1
 }
 .section-head.misc{border-left-color:var(--warn);color:#8a5a00}
 .section-head.equip{border-left-color:var(--accent);color:var(--accent-ink)}
+/* itens coloridos por tipo (Miscelânea âmbar · Equipamento vermelho) */
+.tecnico-item.misc{border-left-color:var(--warn)}
+.tecnico-count.misc{color:#8a5a00}
+.tecnico-item.equip{border-left-color:var(--accent)}
+.tecnico-count.equip{color:var(--accent)}
+/* dentro das seções, a lista quebra em colunas para não esticar o card */
+.section-block .tecnico-list{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+  gap:8px;
+}
 .section-total{
   font-family:'Archivo';font-weight:800;font-size:14px;
   background:var(--surface);border:1px solid var(--line);
@@ -681,6 +692,27 @@ function parseBRDate(dataStr, horaStr){
   if(dataStr == null || dataStr === '') return null;
   if(dataStr instanceof Date) return isNaN(dataStr) ? null : dataStr;
 
+  // hora como fração de dia do Excel (ex.: 0.617 = 14:48)
+  if(typeof horaStr === 'number' && horaStr >= 0 && horaStr < 1){
+    const s = Math.round(horaStr * 86400);
+    horaStr = String(Math.floor(s/3600)).padStart(2,'0') + ':' +
+              String(Math.floor((s%3600)/60)).padStart(2,'0') + ':' +
+              String(s%60).padStart(2,'0');
+  }
+
+  // data como número serial do Excel (célula formatada como data)
+  if(typeof dataStr === 'number'){
+    const utc = new Date(Math.round((dataStr - 25569) * 86400000));
+    if(isNaN(utc)) return null;
+    const dt = new Date(utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate(),
+                        utc.getUTCHours(), utc.getUTCMinutes(), utc.getUTCSeconds());
+    if(horaStr && (dt.getHours()+dt.getMinutes()+dt.getSeconds()) === 0){
+      const t = String(horaStr).split(':').map(Number);
+      dt.setHours(t[0]||0, t[1]||0, t[2]||0);
+    }
+    return isNaN(dt) ? null : dt;
+  }
+
   const s = String(dataStr).trim();
 
   // separa parte de data e (se houver) parte de hora embutida na própria string
@@ -837,14 +869,31 @@ fileInput.addEventListener('change', (e) => {
   handleFiles(e.target.files);
 });
 
+function ehArquivoMisc(nome){ return String(nome||'').toLowerCase().includes('planilha_movimentacao'); }
+function ehArquivoEquip(nome){ return String(nome||'').toLowerCase().includes('relatorio_equipamento'); }
+
 function handleFiles(files) {
-  miscData = [];
-  equipData = [];
-  
+  const lista = Array.from(files || []);
+  if(!lista.length) return;
+
+  const reconhecidos = lista.filter(f => ehArquivoMisc(f.name) || ehArquivoEquip(f.name));
+  const ignorados = lista.filter(f => !ehArquivoMisc(f.name) && !ehArquivoEquip(f.name));
+
+  if(!reconhecidos.length){
+    toast('Nenhum arquivo reconhecido. O nome precisa conter "planilha_movimentacao" ou "relatorio_equipamento".');
+    return;
+  }
+
+  // Substitui APENAS o tipo reenviado — pode subir um arquivo por vez
+  // sem perder o outro que já estava carregado.
+  if(reconhecidos.some(f => ehArquivoMisc(f.name)))  miscData = [];
+  if(reconhecidos.some(f => ehArquivoEquip(f.name))) equipData = [];
+
   let processed = 0;
-  let total = files.length;
-  
-  Array.from(files).forEach(file => {
+  const total = reconhecidos.length;
+  const falhas = [];
+
+  reconhecidos.forEach(file => {
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
@@ -852,24 +901,35 @@ function handleFiles(files) {
         const workbook = XLSX.read(data, {type:'array'});
         const ws = workbook.Sheets[workbook.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, {header:1});
-        
-        if(file.name.includes('planilha_movimentacao')) {
+
+        if(ehArquivoMisc(file.name)) {
           processMiscData(rows);
-        } else if(file.name.includes('relatorio_equipamento')) {
+        } else if(ehArquivoEquip(file.name)) {
           processEquipData(rows);
         }
       } catch(err) {
         console.error('Erro ao processar arquivo:', file.name, err);
-        toast(`Erro ao processar ${file.name}`);
+        falhas.push(file.name);
       }
-      
+
       processed++;
       if(processed === total) {
         render();
         updateUploadStatus();
         uploadModal.classList.remove('open');
+
+        let msg = 'Planilhas carregadas com sucesso!';
+        if(falhas.length)   msg = 'Erro ao LER: ' + falhas.join(', ') + '. Os demais arquivos foram carregados.';
+        if(ignorados.length) msg += ' (Ignorado: ' + ignorados.map(f=>f.name).join(', ') + ')';
+        toast(msg);
+
         enviarProxDiaParaMonitoramento(); // envia os pós-09h para o portal Monitoramento
       }
+    };
+    reader.onerror = () => {
+      falhas.push(file.name);
+      processed++;
+      if(processed === total){ render(); updateUploadStatus(); uploadModal.classList.remove('open'); toast('Erro ao LER: ' + falhas.join(', ')); }
     };
     reader.readAsArrayBuffer(file);
   });
@@ -956,13 +1016,16 @@ function getBaseOptions() {
 
 function populateFilters() {
   const bases = getBaseOptions();
-  const first = bases[0] || '';
 
-  // sem opção "Todas": sempre uma cidade selecionada (compacta a visão)
-  if(!bases.includes(currentFilter.bases))  currentFilter.bases  = first;
+  // "Todas as Bases" é o padrão; escolher uma base específica compacta a visão
+  if(currentFilter.bases && !bases.includes(currentFilter.bases)) currentFilter.bases = '';
 
   const select = document.getElementById('filterBases');
   select.innerHTML = '';
+  const optTodas = document.createElement('option');
+  optTodas.value = '';
+  optTodas.textContent = 'Todas as Bases';
+  select.appendChild(optTodas);
   bases.forEach(b => {
     const opt = document.createElement('option');
     opt.value = b;
@@ -1012,13 +1075,50 @@ function groupRowsByDate(rows){
 }
 function pluralPend(n){ return n === 1 ? '1 pendente' : `${n} pendentes`; }
 
-// bloco de UMA data com tabela dupla (Misc | Equip) — usado na Visão Consolidada
+// bloco de UMA data com tabela por técnico (colunas Misc | Equip + linha TOTAL)
 function dateBlockDualHTML(dateKey, miscRows, equipRows){
   const total = miscRows.length + equipRows.length;
   return `
     <div class="date-block">
       <div class="date-head"><span>📅 ${formatDateLabel(dateKey)}</span><span class="date-total">${pluralPend(total)}</span></div>
       ${compactTableHTML(tecMapFrom(miscRows), tecMapFrom(equipRows))}
+    </div>`;
+}
+
+// tabela compacta: 1 linha por técnico, colunas Miscelânea | Equipamento
+function compactTableHTML(miscMap, equipMap){
+  const tecs = Array.from(new Set([...Object.keys(miscMap), ...Object.keys(equipMap)])).sort();
+  const mTot = Object.values(miscMap).reduce((a,b)=>a+b,0);
+  const eTot = Object.values(equipMap).reduce((a,b)=>a+b,0);
+
+  if(!tecs.length) return `<div class="section-empty" style="margin-top:12px">Sem pendências</div>`;
+
+  const rowHTML = t => {
+    const m = miscMap[t]||0, e = equipMap[t]||0;
+    return `<tr>
+        <td class="t-nome">${esc(t)}</td>
+        <td class="t-num ${m?'':'z'}">${m||'–'}</td>
+        <td class="t-num ${e?'':'z'}">${e||'–'}</td>
+      </tr>`;
+  };
+
+  const table = `
+    <table class="compact">
+      <thead>
+        <tr>
+          <th class="t-nome">Técnico</th>
+          <th class="t-num">📦 Misc</th>
+          <th class="t-num">⚙️ Equip</th>
+        </tr>
+      </thead>
+      <tbody>${tecs.map(rowHTML).join('')}</tbody>
+    </table>`;
+
+  return `
+    ${table}
+    <div class="tec-total">
+      <span>TOTAL</span>
+      <span>📦 ${mTot} <small>Miscelânea</small> &nbsp;·&nbsp; ⚙️ ${eTot} <small>Equipamento</small></span>
     </div>`;
 }
 // botão "copiar como imagem" de um card específico
@@ -1034,67 +1134,6 @@ function tecMapFrom(rows){
   const m = {};
   rows.forEach(d => { m[d.tecnico] = (m[d.tecnico]||0) + 1; });
   return m;
-}
-
-// bloco de uma seção (Miscelânea ou Equipamento) dentro do card
-function sectionHTML(title, cls, tecMap){
-  const total = Object.values(tecMap).reduce((a,b)=>a+b,0);
-  const tecs = Object.keys(tecMap).sort();
-  const rows = tecs.length
-    ? tecs.map(t => `
-        <div class="tecnico-item">
-          <div class="tecnico-nome">${esc(t)}</div>
-          <div class="tecnico-count">${tecMap[t]}</div>
-        </div>`).join('')
-    : `<div class="section-empty">Sem pendências</div>`;
-  return `
-    <div class="section-block">
-      <div class="section-head ${cls}"><span>${title}</span><span class="section-total">${total}</span></div>
-      <div class="tecnico-list">${rows}</div>
-    </div>`;
-}
-
-// tabela compacta: 1 linha por técnico, colunas Miscelânea | Equipamento
-function compactTableHTML(miscMap, equipMap){
-  const tecs = Array.from(new Set([...Object.keys(miscMap), ...Object.keys(equipMap)])).sort();
-  const mTot = Object.values(miscMap).reduce((a,b)=>a+b,0);
-  const eTot = Object.values(equipMap).reduce((a,b)=>a+b,0);
-
-  if(!tecs.length) return `<div class="section-empty" style="margin-top:12px">Sem pendências</div>`;
-
-  // distribui os técnicos em várias colunas para ocupar a largura toda
-  const nCols = Math.min(5, Math.max(1, Math.ceil(tecs.length / 6)));
-  const per = Math.ceil(tecs.length / nCols);
-  const chunks = [];
-  for(let i=0;i<tecs.length;i+=per) chunks.push(tecs.slice(i, i+per));
-
-  const rowHTML = t => {
-    const m = miscMap[t]||0, e = equipMap[t]||0;
-    return `<tr>
-        <td class="t-nome">${esc(t)}</td>
-        <td class="t-num ${m?'':'z'}">${m||'–'}</td>
-        <td class="t-num ${e?'':'z'}">${e||'–'}</td>
-      </tr>`;
-  };
-
-  const tables = chunks.map(chunk => `
-    <table class="compact">
-      <thead>
-        <tr>
-          <th class="t-nome">Técnico</th>
-          <th class="t-num">📦 Misc</th>
-          <th class="t-num">⚙️ Equip</th>
-        </tr>
-      </thead>
-      <tbody>${chunk.map(rowHTML).join('')}</tbody>
-    </table>`).join('');
-
-  return `
-    <div class="tec-cols">${tables}</div>
-    <div class="tec-total">
-      <span>TOTAL</span>
-      <span>📦 ${mTot} <small>Miscelânea</small> &nbsp;·&nbsp; ⚙️ ${eTot} <small>Equipamento</small></span>
-    </div>`;
 }
 
 function renderConsolidado() {
@@ -1147,7 +1186,15 @@ function renderConsolidado() {
       </div>`;
   });
 
-  document.getElementById('consolidadoCards').innerHTML = html || emptyState('Nenhum dado carregado');
+  let vazio;
+  if(miscData.length + equipData.length === 0){
+    vazio = 'Nenhum dado carregado — use "Carregar planilhas" no cabeçalho';
+  } else if(currentFilter.bases){
+    vazio = 'Sem aceites pendentes na base ' + currentFilter.bases;
+  } else {
+    vazio = 'Nenhum aceite pendente 🎉';
+  }
+  document.getElementById('consolidadoCards').innerHTML = html || emptyState(vazio);
   bindCityCopy();
 }
 
@@ -1216,14 +1263,13 @@ async function enviarProxDiaParaMonitoramento(){
   });
 
   if(!rows.length){
-    badge.textContent = 'Sem itens pós-09h';
+    badge.textContent = 'Sem itens pós-09h hoje';
     badge.className = 'proxdia-sync';
     return;
   }
   if(!sb){
-    badge.textContent = 'Sem conexão com o banco';
+    badge.textContent = 'Banco indisponível — planilhas OK, só o envio ficou pendente';
     badge.className = 'proxdia-sync err';
-    toast('Não foi possível enviar ao Monitoramento (Supabase indisponível)');
     return;
   }
 
@@ -1238,13 +1284,22 @@ async function enviarProxDiaParaMonitoramento(){
     }
     badge.textContent = '✓ ' + rows.length + ' registro(s) no Monitoramento — entrega ' + amanhaLabel();
     badge.className = 'proxdia-sync ok';
-    toast('Entregas do próximo dia enviadas ao Monitoramento!');
   }catch(err){
+    // IMPORTANTE: as planilhas já foram carregadas — a falha é só na
+    // integração com o Monitoramento, e fica avisada aqui no badge.
     console.error('Erro ao enviar entregas:', err);
-    badge.textContent = 'Erro ao enviar — tente novo upload';
+    if(tabelaEntregasAusente(err)){
+      badge.textContent = 'Falta ativar no Supabase: rode o supabase_entregas_prox_dia.sql (1x)';
+    } else {
+      badge.textContent = 'Planilhas OK — envio ao Monitoramento falhou (detalhe no console)';
+    }
     badge.className = 'proxdia-sync err';
-    toast('Erro ao enviar entregas ao Monitoramento');
   }
+}
+
+function tabelaEntregasAusente(error){
+  return !!error && (error.code === '42P01' || error.code === 'PGRST205' ||
+    (/entregas_prox_dia/i.test(String(error.message||'')) && /find|exist|cache/i.test(String(error.message||''))));
 }
 
 // liga o clique de cada botão "Copiar" ao card correspondente
@@ -1309,7 +1364,6 @@ function render() {
   populateFilters();
   renderConsolidado();
   renderProximoDia();
-  toast('Dados atualizados com sucesso!');
 }
 
 // ============ FILTERS ============
