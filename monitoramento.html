@@ -524,35 +524,30 @@
           <button class="base-chip" data-base="Macaé">Macaé</button>
           <button class="base-chip" data-base="Rio das Ostras">Rio das Ostras</button>
         </div>
+        <div class="chips-group" style="margin-left:auto;">
+          <span class="chips-label">Dia</span>
+          <input type="date" id="filterDate" style="width:auto; padding:7px 11px; font-size:12.5px;">
+          <span class="chips-label">Status</span>
+          <select id="filterStatus" style="width:auto; padding:7px 11px; font-size:12.5px;">
+            <option value="">Todos</option>
+            <option value="Coletado">Coletado</option>
+            <option value="Não Coletado">Não Coletado</option>
+            <option value="Bloqueado">Bloqueado</option>
+            <option value="Falta">Falta</option>
+            <option value="Folga">Folga</option>
+          </select>
+          <button class="btn ghost small" id="clearFilters">Limpar filtros</button>
+        </div>
       </div>
     </div>
 
     <div class="banner">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
-      <div><b>Painel não cumulativo:</b> os cartões e o resumo abaixo mostram apenas os registros de hoje. O histórico completo continua salvo e pode ser consultado na tabela mais abaixo, filtrando por outra data.</div>
+      <div><b>Filtros globais:</b> os cartões, o resumo e a tabela abaixo respeitam os filtros de <b>Dia</b> e <b>Status</b> selecionados acima. Por padrão, mostram o dia de hoje. O histórico completo continua salvo — basta trocar a data.</div>
     </div>
 
     <div class="summary-row" id="summaryRow"></div>
     <div class="wallboard" id="wallboard"></div>
-
-    <div class="filters-row">
-      <div class="field">
-        <label>Status</label>
-        <select id="filterStatus">
-          <option value="">Todos</option>
-          <option value="Coletado">Coletado</option>
-          <option value="Não Coletado">Não Coletado</option>
-          <option value="Bloqueado">Bloqueado</option>
-          <option value="Falta">Falta</option>
-          <option value="Folga">Folga</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Data</label>
-        <input type="date" id="filterDate">
-      </div>
-      <button class="btn ghost small" id="clearFilters">Limpar filtros</button>
-    </div>
 
     <div class="table-wrap">
       <div class="table-head-actions">
@@ -954,8 +949,10 @@
   function renderWallboard(){
     wallboard.innerHTML = "";
     const STATUS_ORDER = ["Coletado","Não Coletado","Bloqueado","Falta","Folga"];
+    const dataRef = filterDate.value || todayISO();
+    const stFilter = filterStatus.value;
     BASES.filter(baseMatches).forEach(base=>{
-      const recs = records.filter(r=> r.base === base && r.date === todayISO());
+      const recs = records.filter(r=> r.base === base && r.date === dataRef && (!stFilter || r.status === stFilter));
       const card = document.createElement("div");
       card.className = "base-card" + (recs.length ? " has-data" : "");
       card.dataset.base = base;
@@ -999,8 +996,10 @@
 
   function renderSummary(){
     summaryRow.innerHTML = "";
+    const dataRef = filterDate.value || todayISO();
+    const stFilter = filterStatus.value;
     STATUS_LIST.forEach(st=>{
-      const count = records.filter(r=> r.status === st && r.date === todayISO() && baseMatches(r.base)).length;
+      const count = records.filter(r=> r.status === st && r.date === dataRef && baseMatches(r.base) && (!stFilter || r.status === stFilter)).length;
       const color = "var(" + STATUS_COLOR_VAR[st] + ")";
       const div = document.createElement("div");
       div.className = "sum-card";
@@ -1020,8 +1019,8 @@
   const filterDate = document.getElementById("filterDate");
 
   [filterStatus, filterDate].forEach(el=>{
-    el.addEventListener("input", renderTable);
-    el.addEventListener("change", renderTable);
+    el.addEventListener("input", renderAll);
+    el.addEventListener("change", renderAll);
   });
   document.getElementById("clearFilters").addEventListener("click", ()=>{
     filterStatus.value=""; filterDate.value="";
@@ -1253,12 +1252,13 @@
   function buildPanelNode(){
     const filtered = getFiltered();
     const dataRef = filterDate.value || todayISO();
+    const stFilter = filterStatus.value;
     const basesSel = selectedBases.size ? [...selectedBases] : BASES.filter(baseMatches);
     const titulo = selectedBases.size ? [...selectedBases].join(" · ") : "Todas as bases";
 
-    // ---- resumo por status (mesma regra do painel) ----
+    // ---- resumo por status (mesma regra do painel: respeita Dia e Status) ----
     const sumCards = STATUS_LIST.map(st=>{
-      const count = records.filter(r=> r.status === st && r.date === todayISO() && baseMatches(r.base)).length;
+      const count = records.filter(r=> r.status === st && r.date === dataRef && baseMatches(r.base) && (!stFilter || r.status === stFilter)).length;
       return '<div class="sum-card"><div class="s-label"><span class="s-dot" style="background:var('+STATUS_COLOR_VAR[st]+')"></span>'+st+'</div>' +
              '<div class="s-value mono">'+count+'</div></div>';
     }).join("");
@@ -1266,7 +1266,7 @@
     // ---- cartões das bases ----
     const STATUS_ORDER = ["Coletado","Não Coletado","Bloqueado","Falta","Folga"];
     const cards = basesSel.map(base=>{
-      const recs = records.filter(r=> r.base === base && r.date === todayISO());
+      const recs = records.filter(r=> r.base === base && r.date === dataRef && (!stFilter || r.status === stFilter));
       const byStatus = {};
       recs.forEach(r=> byStatus[r.status] = (byStatus[r.status]||0)+1);
       const total = recs.length;
