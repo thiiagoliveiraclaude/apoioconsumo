@@ -344,6 +344,48 @@
   }
   .btn.is-loading{opacity:.75; cursor:progress;}
 
+  /* ===== Entregas do Próximo Dia ===== */
+  .tab-count{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:20px; height:20px; padding:0 6px; margin-left:6px;
+    background:var(--red); color:#fff; border-radius:999px;
+    font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace;
+    vertical-align:middle;
+  }
+  .ent-card{
+    background:#fff; border:1px solid var(--line); border-radius:11px; padding:16px;
+    position:relative; overflow:hidden; box-shadow:0 1px 2px rgba(43,39,89,.04);
+  }
+  .ent-card::before{content:''; position:absolute; left:0; top:0; bottom:0; width:3px; background:#3454a6;}
+  .ent-card .e-city{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    font-family:'Space Grotesk',sans-serif; font-weight:600; font-size:14.5px; color:var(--navy);
+    margin-bottom:10px;
+  }
+  .ent-card .e-total{
+    font-family:'IBM Plex Mono',monospace; font-size:11.5px; font-weight:600;
+    background:rgba(52,84,166,.1); color:#3454a6; border-radius:999px; padding:2px 9px;
+  }
+  .ent-item{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:8px 10px; border:1px solid var(--line-soft); border-radius:8px;
+    margin-top:7px; font-size:13px; background:var(--paper);
+  }
+  .ent-item .ent-nome{font-weight:600; color:var(--ink); flex:1; min-width:0; overflow-wrap:anywhere;}
+  .ent-meta{display:flex; align-items:center; gap:6px; flex-shrink:0; flex-wrap:wrap; justify-content:flex-end;}
+  .ent-tag{
+    font-family:'IBM Plex Mono',monospace; font-size:10.5px; padding:2px 7px;
+    border-radius:999px; border:1px solid var(--line); color:var(--muted); white-space:nowrap;
+  }
+  .ent-tag.auto{color:#3454a6; border-color:rgba(52,84,166,.35);}
+  .ent-tag.manual{color:var(--st-coletado); border-color:rgba(30,142,90,.35);}
+  .ent-del{
+    background:none; border:none; color:var(--muted); cursor:pointer;
+    font-size:15px; padding:2px 7px; border-radius:6px; line-height:1;
+  }
+  .ent-del:hover{color:var(--red); background:rgba(190,30,40,.08);}
+  .ent-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px;}
+
   /* modal de upload da base (aberto pelo cabeçalho) */
   .modal-overlay{
     position:fixed; inset:0; background:rgba(20,16,50,.55); z-index:100;
@@ -393,6 +435,7 @@
 
   <div class="tab-bar">
     <button class="tab-btn active" data-view="registrar">Registrar Atendimento</button>
+    <button class="tab-btn" data-view="entregas">Entregas do Próximo Dia <span class="tab-count" id="entregasTabCount" style="display:none;"></span></button>
     <button class="tab-btn" data-view="painel">Painel Geral</button>
   </div>
 </header>
@@ -447,6 +490,83 @@
             <span class="status-msg" id="formMsg"></span>
           </div>
         </form>
+    </div>
+  </section>
+
+  <!-- ===================== VIEW: ENTREGAS DO PRÓXIMO DIA ===================== -->
+  <section class="view" id="view-entregas" hidden>
+    <div class="view-head-row">
+      <div class="view-head">
+        <p class="eyebrow">Integração · Painel de Aceites</p>
+        <h2>Entregas do próximo dia</h2>
+        <p>Materiais criados após as 09h (até 00h) no Relatório de Aceite Pendente entram aqui automaticamente, com os nomes pré-preenchidos por cidade, como entrega do dia seguinte. Também dá para incluir nomes manualmente abaixo.</p>
+      </div>
+      <div class="finalize-col">
+        <button class="btn ghost" id="copyEntregasBtn">Copiar como imagem</button>
+        <div class="status-msg" id="entregasCopyMsg"></div>
+      </div>
+    </div>
+
+    <div class="banner" id="entregasSetupBanner" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0Z"/></svg>
+      <div><b>Tabela ainda não criada no banco:</b> rode uma vez o arquivo <b>supabase_entregas_prox_dia.sql</b> no SQL Editor do Supabase para ativar as entregas do próximo dia.</div>
+    </div>
+
+    <div class="card" style="margin-bottom:22px;">
+      <h3 style="font-family:'Space Grotesk',sans-serif; font-size:15px; font-weight:600; color:var(--navy); margin:0 0 14px;">Incluir manualmente</h3>
+      <form id="entregaForm">
+        <div class="form-grid">
+          <div class="field">
+            <label>Dia da entrega<span class="required-mark">*</span></label>
+            <input type="date" id="eDate" required>
+          </div>
+          <div class="field">
+            <label>Cidade / Base<span class="required-mark">*</span></label>
+            <input type="text" id="eCidade" list="cidadesEntrega" placeholder="Ex.: Niterói" autocomplete="off" required>
+            <datalist id="cidadesEntrega"></datalist>
+          </div>
+          <div class="field">
+            <label>Técnico<span class="required-mark">*</span></label>
+            <input type="text" id="eTecnico" list="tecnicosEntrega" placeholder="Nome do técnico" autocomplete="off" required>
+            <datalist id="tecnicosEntrega"></datalist>
+          </div>
+          <div class="field">
+            <label>Tipo<span class="required-mark">*</span></label>
+            <select id="eTipo" required>
+              <option value="MISCELÂNEA" selected>Miscelânea</option>
+              <option value="EQUIPAMENTO">Equipamento</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Qtd. de itens<span class="required-mark">*</span></label>
+            <input type="number" id="eQtd" min="1" step="1" value="1" required style="width:100%; background:var(--white); border:1.5px solid var(--line); color:var(--ink); padding:11px 13px; border-radius:9px; font-size:14px; font-family:'Inter',sans-serif; outline:none;">
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px; margin-top:8px;">
+          <button type="submit" class="btn">Incluir entrega</button>
+          <span class="status-msg" id="entregaFormMsg"></span>
+        </div>
+      </form>
+    </div>
+
+    <div class="chips-band">
+      <div class="chips-inner">
+        <div class="chips-group">
+          <span class="chips-label">Dia da entrega</span>
+          <input type="date" id="entregasDia" style="width:auto; padding:7px 11px; font-size:12.5px;">
+          <button class="btn ghost small" id="entregasAmanhaBtn">Amanhã</button>
+          <button class="btn ghost small" id="entregasHojeBtn">Hoje</button>
+        </div>
+        <div class="chips-group" style="margin-left:auto;">
+          <span class="chips-hint" id="entregasResumo">—</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="ent-grid" id="entregasCards"></div>
+    <div class="empty-state" id="entregasEmpty" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8ZM5.5 21a2 2 0 1 0 0-4 2 2 0 0 0 0 4Zm13 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/></svg>
+      <p>Nenhuma entrega para este dia. Os itens pós-09h do painel de aceites aparecem aqui automaticamente após o upload.</p>
     </div>
   </section>
 
@@ -820,6 +940,7 @@
     const searchInput = document.getElementById("fTechSearch");
     searchInput.disabled = technicianDB.length === 0;
     searchInput.placeholder = technicianDB.length ? "Digite o nome do técnico" : "Carregue a base primeiro";
+    try{ populateEntregaDatalists(); }catch(e){ /* aba de entregas ainda não montada */ }
   }
 
   /* ================= AUTOCOMPLETE ================= */
@@ -1337,6 +1458,190 @@
     XLSX.writeFile(wb, "monitoramento_tecnicos_" + todayISO() + ".xlsx");
   });
 
+  /* ================= ENTREGAS DO PRÓXIMO DIA =================
+     Integração com o Relatório de Aceite Pendente (aceites.html):
+     materiais criados após as 09h (até 00h) chegam aqui via Supabase
+     (tabela entregas_prox_dia), pré-preenchidos por cidade e técnico.
+     A inclusão manual continua liberada pelo formulário da própria aba. */
+  let entregas = [];
+  const entregasDia = document.getElementById("entregasDia");
+  const entregasCards = document.getElementById("entregasCards");
+  const entregasEmpty = document.getElementById("entregasEmpty");
+  const entregasResumo = document.getElementById("entregasResumo");
+  const entregasSetupBanner = document.getElementById("entregasSetupBanner");
+  const entregasTabCount = document.getElementById("entregasTabCount");
+
+  function isoLocal(d){
+    return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+  }
+  function amanhaISOLocal(){ const d = new Date(); d.setDate(d.getDate()+1); return isoLocal(d); }
+  function hojeISOLocal(){ return isoLocal(new Date()); }
+
+  entregasDia.value = amanhaISOLocal();
+  document.getElementById("eDate").value = amanhaISOLocal();
+
+  function tabelaEntregasAusente(error){
+    return !!error && (error.code === "42P01" || error.code === "PGRST205" ||
+      /entregas_prox_dia/i.test(String(error.message||"")) && /find|exist|cache/i.test(String(error.message||"")));
+  }
+
+  async function carregarEntregas(){
+    const ref = entregasDia.value || amanhaISOLocal();
+    const { data, error } = await supabase
+      .from("entregas_prox_dia")
+      .select("*")
+      .eq("data_entrega", ref)
+      .order("cidade", { ascending:true })
+      .order("tecnico", { ascending:true });
+
+    if(error){
+      console.error("Entregas:", error);
+      entregas = [];
+      entregasSetupBanner.style.display = tabelaEntregasAusente(error) ? "flex" : "none";
+      renderEntregas();
+      return;
+    }
+    entregasSetupBanner.style.display = "none";
+    entregas = data || [];
+    renderEntregas();
+  }
+
+  // Usa o nome "oficial" da base quando a cidade bater com uma das 10 (ignora acento/caixa)
+  function cidadeCanonica(c){
+    const alvo = normalize(c);
+    const hit = BASES.find(b => normalize(b) === alvo);
+    return hit || String(c||"—").trim() || "—";
+  }
+
+  function renderEntregas(){
+    const porCidade = {};
+    entregas.forEach(r => {
+      const c = cidadeCanonica(r.cidade);
+      (porCidade[c] = porCidade[c] || []).push(r);
+    });
+    const cidades = Object.keys(porCidade).sort((a,b)=> a.localeCompare(b,"pt-BR"));
+
+    const totalItens = entregas.reduce((a,r)=> a + (Number(r.qtd)||1), 0);
+    entregasResumo.textContent = entregas.length
+      ? entregas.length + " registro(s) · " + totalItens + " item(ns) · " + cidades.length + " cidade(s)"
+      : "Nenhum registro para o dia selecionado";
+
+    // contador da aba: sempre mostra o total de AMANHÃ
+    if((entregasDia.value || amanhaISOLocal()) === amanhaISOLocal()){
+      entregasTabCount.textContent = entregas.length;
+      entregasTabCount.style.display = entregas.length ? "inline-flex" : "none";
+    }
+
+    entregasEmpty.style.display = cidades.length ? "none" : "block";
+    entregasCards.innerHTML = "";
+
+    cidades.forEach(cidade => {
+      const rows = porCidade[cidade];
+      const totCidade = rows.reduce((a,r)=> a + (Number(r.qtd)||1), 0);
+      const itens = rows.map(r => {
+        const tipoIcone = r.tipo === "EQUIPAMENTO" ? "⚙️" : "📦";
+        const origemCls = r.origem === "MANUAL" ? "manual" : "auto";
+        const origemTxt = r.origem === "MANUAL" ? "Manual" : "Aceites";
+        return '<div class="ent-item">' +
+          '<span class="ent-nome">'+r.tecnico+'</span>' +
+          '<span class="ent-meta">' +
+            '<span class="ent-tag">'+tipoIcone+' '+(Number(r.qtd)||1)+'</span>' +
+            '<span class="ent-tag '+origemCls+'">'+origemTxt+'</span>' +
+            '<button class="ent-del" data-id="'+r.id+'" title="Excluir esta entrega">&times;</button>' +
+          '</span>' +
+        '</div>';
+      }).join("");
+      const card = document.createElement("div");
+      card.className = "ent-card";
+      card.innerHTML = '<div class="e-city"><span>'+cidade+'</span><span class="e-total">'+totCidade+' item(ns)</span></div>' + itens;
+      entregasCards.appendChild(card);
+    });
+
+    entregasCards.querySelectorAll(".ent-del").forEach(btn=>{
+      btn.addEventListener("click", async ()=>{
+        const { error } = await supabase.from("entregas_prox_dia").delete().eq("id", btn.dataset.id);
+        if(error){ console.error(error); alert("Erro ao excluir a entrega."); return; }
+        carregarEntregas();
+      });
+    });
+
+    populateEntregaDatalists();
+  }
+
+  function populateEntregaDatalists(){
+    const dlCidades = document.getElementById("cidadesEntrega");
+    const dlTecnicos = document.getElementById("tecnicosEntrega");
+    if(!dlCidades || !dlTecnicos) return;
+    const cidades = new Set(BASES);
+    entregas.forEach(r => cidades.add(cidadeCanonica(r.cidade)));
+    dlCidades.innerHTML = Array.from(cidades).sort((a,b)=> a.localeCompare(b,"pt-BR"))
+      .map(c => '<option value="'+c.replace(/"/g,"&quot;")+'"></option>').join("");
+    dlTecnicos.innerHTML = technicianDB
+      .map(t => '<option value="'+String(t).replace(/"/g,"&quot;")+'"></option>').join("");
+  }
+
+  /* ----- inclusão manual (continua liberada, como o registro normal) ----- */
+  const entregaForm = document.getElementById("entregaForm");
+  const entregaFormMsg = document.getElementById("entregaFormMsg");
+  function setEntregaMsg(txt, type){
+    entregaFormMsg.textContent = txt || "";
+    entregaFormMsg.className = "status-msg " + (type || "info");
+    if(txt) setTimeout(()=>{ entregaFormMsg.textContent=""; }, 6000);
+  }
+  entregaForm.addEventListener("submit", async function(e){
+    e.preventDefault();
+    const data_entrega = document.getElementById("eDate").value;
+    const cidade = cidadeCanonica(document.getElementById("eCidade").value);
+    const tecnico = String(document.getElementById("eTecnico").value||"").trim();
+    const tipo = document.getElementById("eTipo").value;
+    const qtd = Math.max(1, parseInt(document.getElementById("eQtd").value, 10) || 1);
+
+    if(!data_entrega || cidade === "—" || !tecnico){
+      setEntregaMsg("Preencha dia, cidade e técnico.", "err");
+      return;
+    }
+    const { error } = await supabase.from("entregas_prox_dia").upsert(
+      [{ data_entrega, cidade, tecnico, tipo, qtd, origem: "MANUAL" }],
+      { onConflict: "data_entrega,cidade,tecnico,tipo,origem" }
+    );
+    if(error){
+      console.error(error);
+      setEntregaMsg(tabelaEntregasAusente(error) ? "Tabela não criada — rode o SQL no Supabase." : "Erro ao salvar a entrega.", "err");
+      entregasSetupBanner.style.display = tabelaEntregasAusente(error) ? "flex" : "none";
+      return;
+    }
+    setEntregaMsg("Entrega incluída!", "ok");
+    document.getElementById("eTecnico").value = "";
+    document.getElementById("eQtd").value = "1";
+    if(entregasDia.value !== data_entrega){ entregasDia.value = data_entrega; }
+    carregarEntregas();
+  });
+
+  entregasDia.addEventListener("change", carregarEntregas);
+  document.getElementById("entregasAmanhaBtn").addEventListener("click", ()=>{ entregasDia.value = amanhaISOLocal(); carregarEntregas(); });
+  document.getElementById("entregasHojeBtn").addEventListener("click", ()=>{ entregasDia.value = hojeISOLocal(); carregarEntregas(); });
+
+  /* ----- copiar a aba como imagem (mesmo fluxo dos outros botões) ----- */
+  const copyEntregasBtn = document.getElementById("copyEntregasBtn");
+  const entregasCopyMsg = document.getElementById("entregasCopyMsg");
+  function buildEntregasNode(){
+    const ref = entregasDia.value || amanhaISOLocal();
+    const node = document.createElement("div");
+    node.style.cssText = "position:fixed; left:-20000px; top:0; width:1180px; padding:26px; background:#fff;";
+    node.innerHTML =
+      '<div style="font-family:\'Space Grotesk\',sans-serif; font-size:19px; font-weight:600; color:var(--navy);">Entregas do próximo dia — ' + fmtDate(ref) + '</div>' +
+      '<div style="font-size:12.5px; color:var(--muted); margin:5px 0 20px;">' + (entregasResumo.textContent || "") + ' · Origem: Painel de Aceites + inclusões manuais</div>' +
+      '<div class="ent-grid">' + entregasCards.innerHTML + '</div>';
+    node.querySelectorAll(".ent-del").forEach(b => b.remove());
+    return node;
+  }
+  if(copyEntregasBtn){
+    copyEntregasBtn.addEventListener("click", ()=>{
+      if(!entregas.length){ setEntregaMsg("", "info"); entregasCopyMsg.textContent = "Nada para copiar neste dia."; entregasCopyMsg.className = "status-msg info"; setTimeout(()=>{ entregasCopyMsg.textContent=""; }, 4000); return; }
+      copiarNodeComoImagem(buildEntregasNode(), "entregas_" + (entregasDia.value || amanhaISOLocal()) + ".png", entregasCopyMsg, copyEntregasBtn);
+    });
+  }
+
   /* ================= BUSCAR DADOS DO SUPABASE ================= */
   async function carregarDadosDoBanco() {
     const { data, error } = await supabase
@@ -1360,12 +1665,21 @@
   // Inicializa buscando as informações do banco
   carregarDadosDoBanco();
   loadTechniciansFromDB();
+  carregarEntregas();
 
   // Escuta mudanças em tempo real: quando qualquer pessoa lançar/excluir
   // um atendimento, atualiza a tela automaticamente para todo mundo
   supabase.channel("atendimentos-realtime")
     .on("postgres_changes", { event: "*", schema: "public", table: "atendimentos" }, ()=>{
       carregarDadosDoBanco();
+    })
+    .subscribe();
+
+  // Tempo real das entregas do próximo dia: uploads no painel de aceites
+  // e inclusões manuais aparecem aqui na hora, para todo mundo
+  supabase.channel("entregas-realtime")
+    .on("postgres_changes", { event: "*", schema: "public", table: "entregas_prox_dia" }, ()=>{
+      carregarEntregas();
     })
     .subscribe();
 
@@ -1409,6 +1723,7 @@
     btn.addEventListener("click", ()=>{
       if(btn.dataset.view === "painel" && !ensureAdmin()) return;
       activateTab(btn);
+      if(btn.dataset.view === "entregas") carregarEntregas(); // garante a lista fresca ao abrir
     });
   });
 

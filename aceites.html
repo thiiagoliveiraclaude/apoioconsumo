@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel de Aceites Pendentes</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef0f3; --surface:#ffffff; --surface-2:#f6f7fa;
+  --ink:#1b1c30; --muted:#6a6f82; --faint:#9a9fb0;
+  --line:#e0e2ec; --line-strong:#c9ccdb;
+  --accent:#be1e28; --accent-ink:#8f141c;
+  --navy:#2b2759; --navy-2:#1f1c40;
+  --ok:#0f9d58; --warn:#f9a825; --danger:#cc3d3d;
+  --shadow:0 1px 2px rgba(28,28,50,.06),0 8px 24px -12px rgba(28,28,50,.20);
+  --radius:14px;
+}
+
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:'Inter',system-ui,-apple-system,sans-serif;
+  font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  text-transform:uppercase; /* todas as informações em MAIÚSCULAS */
+}
+/* garante maiúsculas também em selects e opções */
+select, option, input, button{ text-transform:uppercase; }
+
+/* Header */
+header{
+  background:linear-gradient(180deg,var(--navy),var(--navy-2));
+  color:#fff; padding:16px 22px;
+  box-shadow:var(--shadow);
+  position:sticky;top:0;z-index:50;
+}
+.hbar{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.logo{
+  font-family:'Archivo';font-weight:800;font-size:18px;letter-spacing:.02em;
+  display:flex;align-items:center;gap:10px;
+}
+.logo .icon{
+  width:36px;height:36px;border-radius:10px;
+  background:var(--accent);display:grid;place-items:center;
+  font-weight:700;color:#fff;font-size:20px;
+}
+.hstat{display:flex;gap:16px;font-size:12px}
+.hstat .item{text-align:right;padding:0 12px;border-right:1px solid rgba(255,255,255,.12)}
+.hstat .item:last-child{border-right:0}
+.hstat .n{font-family:'Archivo';font-weight:700;font-size:18px;line-height:1;color:#fff}
+.hstat .l{color:#9aa1ac;margin-top:3px;text-transform:uppercase;letter-spacing:.08em}
+
+/* Botão de upload no cabeçalho (mesmo padrão dos outros portais) */
+.pill-btn{
+  display:inline-flex; align-items:center; gap:8px;
+  background:var(--accent); border:1px solid transparent; color:#fff;
+  padding:9px 16px; border-radius:999px; font-size:12.5px; font-weight:600;
+  cursor:pointer; font-family:inherit; transition:filter .15s;
+  white-space:nowrap;
+}
+.pill-btn:hover{filter:brightness(1.1);}
+.pill-btn svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:2.2}
+
+/* Modal de upload (aberto pelo cabeçalho) */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(20,16,50,.55); z-index:100;
+  display:none; align-items:flex-start; justify-content:center; padding:60px 20px;
+  overflow-y:auto;
+}
+.modal-overlay.open{display:flex;}
+.modal-box{
+  background:var(--surface); border-radius:var(--radius); width:100%; max-width:560px;
+  padding:26px; box-shadow:0 30px 60px -20px rgba(20,16,50,.5); position:relative;
+}
+.modal-box h3{font-family:'Archivo';font-weight:700;font-size:17px;margin:0 0 6px;color:var(--navy);}
+.modal-box .modal-sub{margin:0 0 18px;color:var(--muted);font-size:13px;line-height:1.5;}
+.modal-close{
+  position:absolute; top:14px; right:14px; background:none; border:none;
+  color:var(--muted); font-size:20px; cursor:pointer; line-height:1; padding:6px;
+}
+.modal-close:hover{color:var(--accent);}
+
+/* Upload Zone (dentro do modal) */
+.upload-zone{
+  border:2px dashed var(--line-strong);
+  border-radius:var(--radius);
+  padding:32px 20px;
+  text-align:center;
+  background:var(--surface-2);
+  margin:0;
+  cursor:pointer;
+  transition:.2s;
+  min-height:120px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+}
+.upload-zone.drag{
+  border-color:var(--accent);
+  background:rgba(190,30,40,.05);
+}
+.upload-zone.drag-over{
+  border-color:var(--accent);
+  background:rgba(190,30,40,.1);
+}
+.upload-zone svg{width:32px;height:32px;margin-bottom:12px;opacity:.6}
+.upload-zone p{margin:8px 0;color:var(--muted);font-weight:500}
+.upload-zone .hint{font-size:11px;color:var(--faint);margin-top:8px}
+.upload-zone input[type="file"]{display:none}
+
+/* Main Container */
+.wrap{max-width:1400px;margin:0 auto;padding:20px}
+
+/* Filters */
+.filters{
+  display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;
+  align-items:center;
+}
+select{
+  appearance:none;
+  background:var(--surface);
+  color:var(--ink);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:10px 36px 10px 14px;
+  font-family:inherit;
+  font-weight:500;
+  font-size:13px;
+  cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%236a6f82' stroke-width='2' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 10px center;
+  padding-right:36px;
+}
+select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(190,30,40,.1)}
+
+/* Cards Grid */
+.cards-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+  gap:20px;
+  margin-bottom:20px;
+}
+.card{
+  background:var(--surface);
+  border-radius:var(--radius);
+  padding:20px;
+  box-shadow:var(--shadow);
+  display:flex;
+  flex-direction:column;
+}
+.card-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:start;
+  margin-bottom:16px;
+  padding-bottom:12px;
+  border-bottom:1px solid var(--line);
+}
+.card-title{
+  font-family:'Archivo';
+  font-weight:700;
+  font-size:16px;
+  color:var(--ink);
+}
+.card-base{
+  font-size:11px;
+  color:var(--faint);
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  margin-top:4px;
+}
+.card-status{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:4px 10px;
+  background:rgba(190,30,40,.08);
+  border-radius:20px;
+  font-size:11px;
+  font-weight:600;
+  color:var(--accent-ink);
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+.card-status.ativo{
+  background:rgba(15,157,88,.08);
+  color:#0a6644;
+}
+
+.tecnico-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.tecnico-item{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px;
+  background:var(--surface-2);
+  border-radius:8px;
+  border-left:3px solid var(--accent);
+}
+.tecnico-item.ativo{
+  border-left-color:var(--ok);
+}
+.tecnico-nome{
+  font-weight:500;
+  font-size:13px;
+  color:var(--ink);
+}
+.tecnico-count{
+  font-family:'Archivo';
+  font-weight:700;
+  font-size:18px;
+  color:var(--accent);
+  min-width:30px;
+  text-align:right;
+}
+.tecnico-count.ativo{
+  color:var(--ok);
+}
+
+/* Summary Section */
+.summary-container{
+  background:var(--surface);
+  border-radius:var(--radius);
+  padding:20px;
+  box-shadow:var(--shadow);
+  margin-bottom:20px;
+}
+.summary-title{
+  font-family:'Archivo';
+  font-weight:700;
+  font-size:16px;
+  margin-bottom:16px;
+  color:var(--ink);
+}
+.summary-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:12px;
+}
+.summary-box{
+  background:var(--surface-2);
+  border-radius:10px;
+  padding:16px;
+  border-left:4px solid var(--accent);
+}
+.summary-box.ativo{
+  border-left-color:var(--ok);
+}
+.summary-box.zero{
+  border-left-color:var(--ok);
+  background:rgba(15,157,88,.04);
+}
+.summary-label{
+  font-size:11px;
+  color:var(--faint);
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  margin-bottom:6px;
+}
+.summary-number{
+  font-family:'Archivo';
+  font-weight:800;
+  font-size:28px;
+  line-height:1;
+  color:var(--accent);
+}
+.summary-box.ativo .summary-number,
+.summary-box.zero .summary-number{
+  color:var(--ok);
+}
+
+/* Date grouping (per base/city) — cada data pendente vira um bloco com técnicos/quantidades */
+.date-block{margin-top:14px}
+.date-block:first-of-type{margin-top:4px}
+.date-head{
+  display:flex;align-items:center;justify-content:space-between;
+  font-family:'Archivo';font-weight:700;font-size:12px;
+  text-transform:uppercase;letter-spacing:.05em;
+  color:#fff;
+  background:var(--navy);
+  padding:7px 10px;border-radius:8px;margin-bottom:8px;
+}
+.date-total{
+  font-family:'Archivo';font-weight:800;font-size:11px;
+  background:rgba(255,255,255,.15);
+  border-radius:20px;padding:2px 10px;color:#fff;
+}
+
+/* Copy Button */
+.copy-btn{
+  background:var(--accent);
+  color:#fff;
+  border:0;
+  padding:12px 16px;
+  border-radius:10px;
+  font-weight:600;
+  font-size:13px;
+  cursor:pointer;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  transition:.2s;
+  margin-top:16px;
+}
+.copy-btn:hover{
+  background:var(--accent-ink);
+}
+.copy-btn.done{
+  background:var(--ok);
+}
+.copy-btn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2}
+
+/* ===== Entrega para o Próximo Dia ===== */
+.proxdia-container{
+  background:var(--surface);
+  border-radius:var(--radius);
+  padding:20px;
+  box-shadow:var(--shadow);
+  margin-top:26px;
+  border-top:4px solid var(--st-prox, #3454a6);
+}
+.proxdia-head{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  margin-bottom:6px;
+}
+.proxdia-title{
+  font-family:'Archivo';font-weight:800;font-size:16px;color:#3454a6;
+  display:flex;align-items:center;gap:8px;
+}
+.proxdia-sub{font-size:12px;color:var(--muted);margin-bottom:14px}
+.proxdia-sync{
+  font-size:11px;font-weight:600;letter-spacing:.05em;
+  padding:5px 12px;border-radius:20px;background:rgba(52,84,166,.08);color:#3454a6;
+}
+.proxdia-sync.ok{background:rgba(15,157,88,.1);color:#0a6644}
+.proxdia-sync.err{background:rgba(190,30,40,.1);color:var(--accent-ink)}
+.proxdia-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:16px;
+}
+.proxdia-card{
+  background:var(--surface-2);
+  border-radius:10px;
+  padding:14px;
+  border-left:4px solid #3454a6;
+}
+.proxdia-city{
+  display:flex;justify-content:space-between;align-items:center;
+  font-family:'Archivo';font-weight:700;font-size:13px;color:var(--navy);
+  margin-bottom:10px;
+}
+.proxdia-count{
+  font-family:'Archivo';font-weight:800;font-size:12px;
+  background:#3454a6;color:#fff;border-radius:20px;padding:2px 10px;
+}
+.proxdia-item{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  padding:7px 10px;background:var(--surface);border-radius:8px;margin-bottom:6px;
+  font-size:12.5px;
+}
+.proxdia-item .nm{font-weight:500;color:var(--ink)}
+.proxdia-item .tp{
+  font-size:10px;font-weight:700;letter-spacing:.05em;color:var(--muted);
+  display:flex;gap:6px;align-items:center;white-space:nowrap;
+}
+
+/* Mini copy button (per city) */
+.copy-btn.mini{
+  margin-top:0;
+  padding:7px 11px;
+  font-size:11px;
+  border-radius:8px;
+  white-space:nowrap;
+}
+.copy-btn.mini svg{width:13px;height:13px}
+
+/* Section headers inside a city card (Miscelânea vs Equipamento) */
+.section-block{margin-top:14px}
+.section-block:first-of-type{margin-top:4px}
+.section-head{
+  display:flex;align-items:center;justify-content:space-between;
+  font-family:'Archivo';font-weight:700;font-size:12px;
+  text-transform:uppercase;letter-spacing:.07em;
+  color:var(--navy);
+  background:var(--surface-2);
+  border-left:3px solid var(--navy);
+  padding:7px 10px;border-radius:8px;margin-bottom:8px;
+}
+.section-head.misc{border-left-color:var(--warn);color:#8a5a00}
+.section-head.equip{border-left-color:var(--accent);color:var(--accent-ink)}
+.section-total{
+  font-family:'Archivo';font-weight:800;font-size:14px;
+  background:var(--surface);border:1px solid var(--line);
+  border-radius:20px;padding:2px 10px;color:var(--ink);
+}
+.section-empty{
+  font-size:12px;color:var(--faint);padding:8px 10px;font-style:italic;
+}
+
+/* Tabela compacta por cidade — múltiplas colunas ocupando a largura toda */
+.tec-cols{
+  display:grid;
+  grid-template-columns:repeat(auto-fit, minmax(240px, 1fr));
+  gap:8px 22px;
+  margin-top:14px;
+  align-items:start;
+}
+.tec-total{
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;
+  margin-top:14px;padding:12px 14px;border-radius:10px;
+  background:var(--surface-2);border-left:4px solid var(--navy);
+  font-family:'Archivo';font-weight:800;color:var(--navy);
+  font-size:13px;letter-spacing:.04em;
+}
+.tec-total small{font-weight:600;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.06em}
+table.compact{width:100%;border-collapse:collapse;font-size:13px}
+table.compact th{
+  background:var(--surface-2);color:var(--muted);
+  font-family:'Archivo';font-weight:700;font-size:11px;
+  text-transform:uppercase;letter-spacing:.04em;
+  padding:8px 10px;border-bottom:2px solid var(--line);text-align:right;white-space:nowrap;
+}
+table.compact th.t-nome{text-align:left}
+table.compact td{padding:6px 10px;border-bottom:1px solid var(--line)}
+table.compact td.t-nome{font-weight:500;color:var(--ink);font-size:12.5px}
+table.compact td.t-num{
+  text-align:right;font-family:'Archivo';font-weight:700;font-size:15px;
+  color:var(--accent);width:78px;
+}
+table.compact td.t-num.z{color:var(--faint);font-weight:500}
+table.compact tbody tr:hover td{background:var(--surface-2)}
+table.compact tr.t-total td{
+  border-top:2px solid var(--line-strong);border-bottom:0;
+  background:var(--surface-2);font-family:'Archivo';
+}
+table.compact tr.t-total td.t-nome{
+  font-weight:800;text-transform:uppercase;font-size:11px;letter-spacing:.06em;color:var(--navy);
+}
+table.compact tr.t-total td.t-num{color:var(--navy);font-size:16px}
+
+/* Table */
+.table-container{
+  background:var(--surface);
+  border-radius:var(--radius);
+  padding:20px;
+  box-shadow:var(--shadow);
+  overflow-x:auto;
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px;
+}
+thead{
+  background:var(--surface-2);
+}
+th{
+  text-align:left;
+  padding:12px;
+  font-weight:600;
+  color:var(--muted);
+  border-bottom:2px solid var(--line);
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  font-size:11px;
+}
+td{
+  padding:12px;
+  border-bottom:1px solid var(--line);
+}
+tr:hover{background:var(--surface-2)}
+.status-badge{
+  display:inline-block;
+  padding:4px 8px;
+  border-radius:6px;
+  font-weight:600;
+  font-size:11px;
+  text-transform:uppercase;
+  letter-spacing:.05em;
+  background:rgba(190,30,40,.1);
+  color:var(--accent-ink);
+}
+.status-badge.ativo{
+  background:rgba(15,157,88,.1);
+  color:#0a6644;
+}
+
+/* Last Updated */
+.last-updated{
+  font-size:11px;
+  color:var(--faint);
+  text-align:center;
+  margin-top:30px;
+  padding-top:20px;
+  border-top:1px solid var(--line);
+}
+
+/* Toast */
+#toast{
+  position:fixed;
+  bottom:20px;
+  right:20px;
+  background:var(--navy);
+  color:#fff;
+  padding:14px 18px;
+  border-radius:10px;
+  font-weight:500;
+  font-size:13px;
+  opacity:0;
+  pointer-events:none;
+  transition:.3s;
+  z-index:1000;
+}
+#toast.show{
+  opacity:1;
+  pointer-events:auto;
+}
+
+/* Empty State */
+.empty-state{
+  text-align:center;
+  padding:40px 20px;
+  color:var(--muted);
+}
+.empty-state svg{
+  width:60px;
+  height:60px;
+  opacity:.3;
+  margin-bottom:16px;
+}
+
+/* Responsive */
+@media(max-width:768px){
+  .hbar{flex-direction:column;align-items:flex-start}
+  .cards-grid{grid-template-columns:1fr}
+  .summary-grid{grid-template-columns:repeat(2,1fr)}
+  table{font-size:12px}
+  th,td{padding:10px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hbar">
+    <div class="logo">
+      <div class="icon">✓</div>
+      <div>
+        <div>Aceites Pendentes</div>
+      </div>
+    </div>
+    <div class="hstat">
+      <div class="item">
+        <div class="l">Total Pendentes</div>
+        <div class="n" id="totalPassivo">0</div>
+      </div>
+      <div class="item">
+        <div class="l">Entrega Próx. Dia</div>
+        <div class="n" id="totalProxDia">0</div>
+      </div>
+      <div class="item">
+        <div class="l">Última Atualização</div>
+        <div class="n" id="lastUpdate">--:--</div>
+      </div>
+      <div class="item" style="display:flex;align-items:center;border-right:0">
+        <button class="pill-btn" id="openUploadBtn" title="Carregar as planilhas do dia">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+          Carregar planilhas
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="filters" style="margin-top:6px">
+    <label>Filtrar por Base:</label>
+    <select id="filterBases">
+      <option value="">Todas as Bases</option>
+    </select>
+  </div>
+
+  <div class="summary-container">
+    <div class="summary-title">📈 Resumo Geral</div>
+    <div class="summary-grid">
+      <div class="summary-box">
+        <div class="summary-label">Aceites Pendentes</div>
+        <div class="summary-number" id="sumPassivos">0</div>
+      </div>
+      <div class="summary-box">
+        <div class="summary-label">Miscelâneas Pendentes</div>
+        <div class="summary-number" id="sumMisc">0</div>
+      </div>
+      <div class="summary-box">
+        <div class="summary-label">Equipamentos Pendentes</div>
+        <div class="summary-number" id="sumEquip">0</div>
+      </div>
+      <div class="summary-box" style="border-left-color:#3454a6">
+        <div class="summary-label">Entrega Próximo Dia</div>
+        <div class="summary-number" id="sumProxDia" style="color:#3454a6">0</div>
+      </div>
+    </div>
+    <button class="copy-btn" id="copyResumoBt">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+      Copiar como Imagem
+    </button>
+  </div>
+
+  <div id="consolidadoCards" class="cards-grid"></div>
+
+  <!-- Entrega para o Próximo Dia (criados hoje das 09h às 00h) -->
+  <div class="proxdia-container" id="proxDiaContainer" style="display:none">
+    <div class="proxdia-head">
+      <div class="proxdia-title">🚚 Entrega para o Próximo Dia <span id="proxDiaData" style="font-size:12px;font-weight:600;color:var(--muted)"></span></div>
+      <span class="proxdia-sync" id="proxDiaSync">Aguardando envio</span>
+    </div>
+    <div class="proxdia-sub">Materiais criados hoje após as 09h (até 00h). Não contam como pendência de hoje — os nomes vão pré-preenchidos, por cidade, para o portal Monitoramento.</div>
+    <div class="proxdia-grid" id="proxDiaCards"></div>
+  </div>
+
+  <div class="last-updated">
+    <p id="updateInfo">Nenhum arquivo carregado. Próximo upload em: 08:00, 10:00 ou 15:00</p>
+  </div>
+
+</div>
+
+<!-- Modal de upload (aberto pelo cabeçalho) -->
+<div class="modal-overlay" id="uploadModal">
+  <div class="modal-box">
+    <button class="modal-close" id="closeUploadBtn" title="Fechar">&times;</button>
+    <h3>Carregar planilhas do dia</h3>
+    <p class="modal-sub">Envie os dois arquivos de uma vez ou um por um. O painel recalcula na hora.</p>
+    <div class="upload-zone" id="uploadZone">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      <p><strong>Arraste os arquivos Excel aqui</strong></p>
+      <p>ou clique para selecionar</p>
+      <span class="hint">Suporta: planilha_movimentacao_tecnico_*.xlsx e relatorio_equipamento_*.xlsx</span>
+      <input type="file" id="fileInput" accept=".xlsx" multiple>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ============ GLOBALS ============
+let miscData = [];
+let equipData = [];
+let currentFilter = {bases:'', cidade:''};
+
+// ============ SUPABASE (integração com o portal Monitoramento) ============
+// Mesmo projeto do monitoramento.html — chave PUBLICÁVEL / ANON (pode ficar no navegador).
+const SUPABASE_URL = "https://vxytwdpjltxwatfgdpjz.supabase.co";
+const SUPABASE_KEY = "sb_publishable_I2tlAqbOb9crCGWEjQwvWA_EXGEE2jC";
+let sb = null;
+try{
+  if(window.supabase) sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+}catch(e){ console.error('Supabase indisponível:', e); }
+
+// ============ DATE/TIME LOGIC ============
+// Parser robusto de data+hora.
+// Aceita: objeto Date, "AAAA-MM-DD[ HH:MM:SS]" (ISO, miscelâneas)
+//         e "DD/MM/AAAA" com hora separada (relatório de equipamento).
+// Retorna um Date válido ou null.
+function parseBRDate(dataStr, horaStr){
+  if(dataStr == null || dataStr === '') return null;
+  if(dataStr instanceof Date) return isNaN(dataStr) ? null : dataStr;
+
+  const s = String(dataStr).trim();
+
+  // separa parte de data e (se houver) parte de hora embutida na própria string
+  const parts = s.split(/[ T]/);
+  const datePart = parts[0];
+  let timePart = parts.length > 1 ? parts[1] : '';
+
+  let y, mo, d;
+  if(/^\d{4}-\d{1,2}-\d{1,2}$/.test(datePart)){
+    // ISO: AAAA-MM-DD
+    [y, mo, d] = datePart.split('-').map(Number);
+  } else if(/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(datePart)){
+    // BR: DD/MM/AAAA
+    const p = datePart.split('/').map(Number);
+    d = p[0]; mo = p[1]; y = p[2];
+    if(y < 100) y += 2000;
+  } else {
+    // fallback: deixa o JS tentar
+    const f = new Date(s);
+    return isNaN(f) ? null : f;
+  }
+
+  // hora: usa a que veio na data; se não veio, usa a coluna de hora separada
+  const timeSrc = timePart || (horaStr != null ? String(horaStr).trim() : '');
+  let hh = 0, mm = 0, ss = 0;
+  if(timeSrc){
+    const t = timeSrc.split(':').map(Number);
+    hh = t[0] || 0; mm = t[1] || 0; ss = t[2] || 0;
+  }
+
+  const dt = new Date(y, (mo || 1) - 1, d || 1, hh, mm, ss);
+  return isNaN(dt) ? null : dt;
+}
+
+function isPassivo(dataStr, horaStr = null) {
+  const data = parseBRDate(dataStr, horaStr);
+  if(!data) return false;
+
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const dia  = new Date(data); dia.setHours(0,0,0,0);
+
+  const daysAgo = Math.round((hoje - dia) / (1000*60*60*24));
+
+  // Anterior a hoje: sempre passivo
+  if(daysAgo > 0) return true;
+
+  // É hoje: passivo só se criado antes das 09h
+  if(daysAgo === 0){
+    const minutos = data.getHours() * 60 + data.getMinutes();
+    return minutos < 540; // antes das 09h
+  }
+
+  return false;
+}
+
+function getDayName(dateStr) {
+  const d = new Date(dateStr);
+  const days = ['Dom','Seg','Ter','Qua','Qui','Sex','Sab'];
+  return days[d.getDay()];
+}
+
+// ============ REGRA DE "PENDENTE" E "PRÓXIMO DIA" ============
+// Uma linha conta como 1. NUNCA somamos coluna de quantidade.
+//
+// Regra fixa (sem alternância manual):
+//  - criados em dias anteriores ............... PENDENTE
+//  - criados HOJE antes das 09h ............... PENDENTE
+//  - criados HOJE das 09h até 00h ............. ENTREGA PARA O PRÓXIMO DIA
+//    (saem da pendência de hoje e vão pré-preenchidos, por cidade,
+//     para o portal Monitoramento)
+
+// Verifica se um item foi criado HOJE e às 09h ou depois (até 00:00)
+function isHojeDepois09(dataStr, horaStr){
+  const data = parseBRDate(dataStr, horaStr);
+  if(!data) return false;
+
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  const dia  = new Date(data); dia.setHours(0,0,0,0);
+
+  if(dia.getTime() !== hoje.getTime()) return false; // só se for hoje
+
+  const minutos = data.getHours() * 60 + data.getMinutes();
+  return minutos >= 540; // 09:00 ou depois
+}
+
+function isPendente(aceite){
+  const v = String(aceite==null?'':aceite).trim().toLowerCase();
+  return v === '' || v === 'sem resposta' || v === 'sem_resposta'
+      || v === 'pendente' || v === 'aguardando' || v === 'aguardando aceite';
+}
+// Item ainda sem aceite (independe do horário de criação)
+function isAguardandoAceite(d){
+  if(d.tipo === 'MISCELÂNEA') return isPendente(d.aceite);
+  return true; // cada equipamento = 1 linha
+}
+// Pendente de HOJE: aguardando aceite e fora da janela pós-09h
+function isPendenteItem(d){
+  if(isHojeDepois09(d.dt, d.hora)) return false; // vira entrega do próximo dia
+  return isAguardandoAceite(d);
+}
+// Entrega para o próximo dia: criado hoje das 09h às 00h e ainda sem aceite
+function isProximoDiaItem(d){
+  return isHojeDepois09(d.dt, d.hora) && isAguardandoAceite(d);
+}
+function getProxDiaItems(){
+  return [...miscData, ...equipData].filter(isProximoDiaItem);
+}
+// Data da entrega (amanhã) em ISO local e em DD/MM/AAAA
+function amanhaISO(){
+  const d = new Date(); d.setDate(d.getDate()+1);
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function amanhaLabel(){
+  const [y,m,d] = amanhaISO().split('-');
+  return d + '/' + m + '/' + y;
+}
+
+// ============ MODAL DE UPLOAD (cabeçalho) ============
+const uploadModal = document.getElementById('uploadModal');
+const openUploadBtn = document.getElementById('openUploadBtn');
+const closeUploadBtn = document.getElementById('closeUploadBtn');
+
+openUploadBtn.addEventListener('click', () => uploadModal.classList.add('open'));
+closeUploadBtn.addEventListener('click', () => uploadModal.classList.remove('open'));
+uploadModal.addEventListener('click', (e) => {
+  if(e.target === uploadModal) uploadModal.classList.remove('open');
+});
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape') uploadModal.classList.remove('open');
+});
+
+// ============ FILE UPLOAD ============
+const uploadZone = document.getElementById('uploadZone');
+const fileInput = document.getElementById('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+
+uploadZone.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  uploadZone.classList.add('drag-over');
+});
+
+uploadZone.addEventListener('dragleave', () => {
+  uploadZone.classList.remove('drag-over');
+});
+
+uploadZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  handleFiles(e.dataTransfer.files);
+});
+
+fileInput.addEventListener('change', (e) => {
+  handleFiles(e.target.files);
+});
+
+function handleFiles(files) {
+  miscData = [];
+  equipData = [];
+  
+  let processed = 0;
+  let total = files.length;
+  
+  Array.from(files).forEach(file => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type:'array'});
+        const ws = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, {header:1});
+        
+        if(file.name.includes('planilha_movimentacao')) {
+          processMiscData(rows);
+        } else if(file.name.includes('relatorio_equipamento')) {
+          processEquipData(rows);
+        }
+      } catch(err) {
+        console.error('Erro ao processar arquivo:', file.name, err);
+        toast(`Erro ao processar ${file.name}`);
+      }
+      
+      processed++;
+      if(processed === total) {
+        render();
+        updateUploadStatus();
+        uploadModal.classList.remove('open');
+        enviarProxDiaParaMonitoramento(); // envia os pós-09h para o portal Monitoramento
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function processMiscData(rows) {
+  if(rows.length < 2) return;
+  
+  const headers = rows[0];
+  const dtIdx = headers.indexOf('dt_solicitacao');
+  const baseIdx = headers.indexOf('base');
+  const tecnicoIdx = headers.indexOf('recebido_por');
+  const aceiteIdx = headers.indexOf('aceite_destinatario');
+  // Detecção opcional (só para exibir o material). A quantidade NUNCA é somada.
+  const itemIdx = findHeader(headers, ['modelo','material','item','descricao','descrição','produto','equipamento','nome_material']);
+  const qtdIdx  = findHeader(headers, ['quantidade','qtd','qtde','quant','qte']);
+  
+  for(let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if(!row[dtIdx]) continue;
+    
+    miscData.push({
+      tipo: 'MISCELÂNEA',
+      dt: row[dtIdx],
+      hora: typeof row[dtIdx] === 'string' && row[dtIdx].includes(' ') ? 
+            row[dtIdx].split(' ')[1] : '00:00',
+      base: row[baseIdx] || '',
+      tecnico: row[tecnicoIdx] || 'N/A',
+      aceite: row[aceiteIdx] || '',
+      item: itemIdx > -1 ? (row[itemIdx] || '') : '',
+      qtd: qtdIdx > -1 ? row[qtdIdx] : null, // apenas informativo, não é somado
+      passivo: isPassivo(row[dtIdx]),
+    });
+  }
+}
+
+// localiza cabeçalho por nome (tolerante a acento/caixa)
+function findHeader(headers, names){
+  const clean = s => String(s==null?'':s).trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  const cleanNames = names.map(clean);
+  for(let i=0;i<headers.length;i++){
+    if(cleanNames.includes(clean(headers[i]))) return i;
+  }
+  return -1;
+}
+
+function processEquipData(rows) {
+  if(rows.length < 2) return;
+  
+  const headers = rows[0];
+  const dataIdx = 24; // Coluna Y
+  const horaIdx = 25;  // Coluna Z
+  const cidadeIdx = 21; // Coluna V
+  const tecnicoIdx = 12; // Coluna M
+  const statusIdx = 9;   // Coluna J
+  
+  for(let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if(!row[dataIdx]) continue;
+    
+    const dataStr = row[dataIdx];
+    const horaStr = row[horaIdx] || '00:00';
+    
+    equipData.push({
+      tipo: 'EQUIPAMENTO',
+      dt: dataStr,
+      hora: horaStr,
+      cidade: row[cidadeIdx] || '',
+      tecnico: row[tecnicoIdx] || 'N/A',
+      status: row[statusIdx] || '',
+      passivo: isPassivo(dataStr, horaStr),
+    });
+  }
+}
+
+// ============ RENDER FUNCTIONS ============
+function getBaseOptions() {
+  const bases = new Set();
+  miscData.forEach(d => bases.add(d.base));
+  equipData.forEach(d => bases.add(d.cidade));
+  return Array.from(bases).filter(b => b).sort();
+}
+
+function populateFilters() {
+  const bases = getBaseOptions();
+  const first = bases[0] || '';
+
+  // sem opção "Todas": sempre uma cidade selecionada (compacta a visão)
+  if(!bases.includes(currentFilter.bases))  currentFilter.bases  = first;
+
+  const select = document.getElementById('filterBases');
+  select.innerHTML = '';
+  bases.forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b;
+    opt.textContent = b;
+    select.appendChild(opt);
+  });
+  select.value = currentFilter.bases;
+}
+
+// ---- helpers de render ----
+function slug(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') || 'x'; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m])); }
+const emptyState = msg => `<div class="empty-state"><svg fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm0-13c-2.76 0-5 2.24-5 5s2.24 5 5 5 5-2.24 5-5-2.24-5-5-5z"/></svg><p>${msg}</p></div>`;
+
+// ---- agrupamento por data de pendência ----
+function parseItemDate(r){
+  return parseBRDate(r.dt, r.hora);
+}
+function oldestDate(rows){
+  let min = null;
+  rows.forEach(r => {
+    const d = parseItemDate(r);
+    if(d && (!min || d < min)) min = d;
+  });
+  return min;
+}
+// chave yyyy-mm-dd (para ordenar corretamente) a partir da data do item
+function dateGroupKey(r){
+  const d = parseItemDate(r);
+  if(!d) return 'sem-data';
+  const dd = new Date(d); dd.setHours(0,0,0,0);
+  return dd.getFullYear() + '-' + String(dd.getMonth()+1).padStart(2,'0') + '-' + String(dd.getDate()).padStart(2,'0');
+}
+function formatDateLabel(key){
+  if(key === 'sem-data') return 'Sem data';
+  const [y,m,d] = key.split('-');
+  return `${d}/${m}/${y}`;
+}
+// agrupa uma lista de linhas por data (chave yyyy-mm-dd)
+function groupRowsByDate(rows){
+  const g = {};
+  rows.forEach(r => {
+    const k = dateGroupKey(r);
+    (g[k] = g[k] || []).push(r);
+  });
+  return g;
+}
+function pluralPend(n){ return n === 1 ? '1 pendente' : `${n} pendentes`; }
+
+// bloco de UMA data com tabela dupla (Misc | Equip) — usado na Visão Consolidada
+function dateBlockDualHTML(dateKey, miscRows, equipRows){
+  const total = miscRows.length + equipRows.length;
+  return `
+    <div class="date-block">
+      <div class="date-head"><span>📅 ${formatDateLabel(dateKey)}</span><span class="date-total">${pluralPend(total)}</span></div>
+      ${compactTableHTML(tecMapFrom(miscRows), tecMapFrom(equipRows))}
+    </div>`;
+}
+// botão "copiar como imagem" de um card específico
+function copyBtnHTML(targetId, city){
+  return `<button class="copy-btn mini copy-city" data-target="${targetId}" data-city="${esc(city)}" title="Copiar ${esc(city)} como imagem">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+    Copiar
+  </button>`;
+}
+
+// conta LINHAS pendentes por técnico (1 por linha, nunca soma quantidade)
+function tecMapFrom(rows){
+  const m = {};
+  rows.forEach(d => { m[d.tecnico] = (m[d.tecnico]||0) + 1; });
+  return m;
+}
+
+// bloco de uma seção (Miscelânea ou Equipamento) dentro do card
+function sectionHTML(title, cls, tecMap){
+  const total = Object.values(tecMap).reduce((a,b)=>a+b,0);
+  const tecs = Object.keys(tecMap).sort();
+  const rows = tecs.length
+    ? tecs.map(t => `
+        <div class="tecnico-item">
+          <div class="tecnico-nome">${esc(t)}</div>
+          <div class="tecnico-count">${tecMap[t]}</div>
+        </div>`).join('')
+    : `<div class="section-empty">Sem pendências</div>`;
+  return `
+    <div class="section-block">
+      <div class="section-head ${cls}"><span>${title}</span><span class="section-total">${total}</span></div>
+      <div class="tecnico-list">${rows}</div>
+    </div>`;
+}
+
+// tabela compacta: 1 linha por técnico, colunas Miscelânea | Equipamento
+function compactTableHTML(miscMap, equipMap){
+  const tecs = Array.from(new Set([...Object.keys(miscMap), ...Object.keys(equipMap)])).sort();
+  const mTot = Object.values(miscMap).reduce((a,b)=>a+b,0);
+  const eTot = Object.values(equipMap).reduce((a,b)=>a+b,0);
+
+  if(!tecs.length) return `<div class="section-empty" style="margin-top:12px">Sem pendências</div>`;
+
+  // distribui os técnicos em várias colunas para ocupar a largura toda
+  const nCols = Math.min(5, Math.max(1, Math.ceil(tecs.length / 6)));
+  const per = Math.ceil(tecs.length / nCols);
+  const chunks = [];
+  for(let i=0;i<tecs.length;i+=per) chunks.push(tecs.slice(i, i+per));
+
+  const rowHTML = t => {
+    const m = miscMap[t]||0, e = equipMap[t]||0;
+    return `<tr>
+        <td class="t-nome">${esc(t)}</td>
+        <td class="t-num ${m?'':'z'}">${m||'–'}</td>
+        <td class="t-num ${e?'':'z'}">${e||'–'}</td>
+      </tr>`;
+  };
+
+  const tables = chunks.map(chunk => `
+    <table class="compact">
+      <thead>
+        <tr>
+          <th class="t-nome">Técnico</th>
+          <th class="t-num">📦 Misc</th>
+          <th class="t-num">⚙️ Equip</th>
+        </tr>
+      </thead>
+      <tbody>${chunk.map(rowHTML).join('')}</tbody>
+    </table>`).join('');
+
+  return `
+    <div class="tec-cols">${tables}</div>
+    <div class="tec-total">
+      <span>TOTAL</span>
+      <span>📦 ${mTot} <small>Miscelânea</small> &nbsp;·&nbsp; ⚙️ ${eTot} <small>Equipamento</small></span>
+    </div>`;
+}
+
+function renderConsolidado() {
+  // agrupa por cidade/base: {misc:[linhas], equip:[linhas]} — só pendentes
+  const grouped = {};
+  miscData.filter(isPendenteItem).forEach(d=>{
+    const city = d.base || '—';
+    (grouped[city] = grouped[city] || {misc:[], equip:[]}).misc.push(d);
+  });
+  equipData.filter(isPendenteItem).forEach(d=>{
+    const city = d.cidade || '—';
+    (grouped[city] = grouped[city] || {misc:[], equip:[]}).equip.push(d);
+  });
+
+  let cities = Object.keys(grouped);
+  if(currentFilter.bases) cities = cities.filter(c => c === currentFilter.bases);
+
+  // ordena da base com pendência mais antiga (mais urgente) para a mais recente
+  cities.sort((a, b) => {
+    const da = oldestDate([...grouped[a].misc, ...grouped[a].equip]);
+    const db = oldestDate([...grouped[b].misc, ...grouped[b].equip]);
+    if(da && db) return da - db;
+    if(da) return -1;
+    if(db) return 1;
+    return a.localeCompare(b);
+  });
+
+  let html = '';
+  cities.forEach(city => {
+    const g = grouped[city];
+    const total = g.misc.length + g.equip.length;   // linhas pendentes
+    if(total === 0) return;
+    const id = 'card-'+slug(city);
+
+    const miscByDate = groupRowsByDate(g.misc);
+    const equipByDate = groupRowsByDate(g.equip);
+    const dateKeys = Array.from(new Set([...Object.keys(miscByDate), ...Object.keys(equipByDate)])).sort();
+    const dateBlocks = dateKeys.map(k => dateBlockDualHTML(k, miscByDate[k] || [], equipByDate[k] || [])).join('');
+
+    html += `
+      <div class="card city-card" id="${id}">
+        <div class="card-header">
+          <div>
+            <div class="card-title">${esc(city)}</div>
+            <div class="card-base">${total} Aceites Pendentes</div>
+          </div>
+          ${copyBtnHTML(id, city)}
+        </div>
+        ${dateBlocks}
+      </div>`;
+  });
+
+  document.getElementById('consolidadoCards').innerHTML = html || emptyState('Nenhum dado carregado');
+  bindCityCopy();
+}
+
+// ============ ENTREGA PARA O PRÓXIMO DIA ============
+// Agrupa os itens pós-09h por cidade e técnico (com contagem por tipo)
+function agruparProxDia(){
+  const items = getProxDiaItems();
+  const porCidade = {};
+  items.forEach(d => {
+    const cidade = (d.tipo === 'MISCELÂNEA' ? d.base : d.cidade) || '—';
+    const key = cidade;
+    (porCidade[key] = porCidade[key] || {});
+    const tecKey = d.tecnico || 'N/A';
+    const t = (porCidade[key][tecKey] = porCidade[key][tecKey] || {misc:0, equip:0});
+    if(d.tipo === 'MISCELÂNEA') t.misc++; else t.equip++;
+  });
+  return porCidade;
+}
+
+function renderProximoDia(){
+  const porCidade = agruparProxDia();
+  const cidades = Object.keys(porCidade).sort();
+  const container = document.getElementById('proxDiaContainer');
+  const cards = document.getElementById('proxDiaCards');
+  document.getElementById('proxDiaData').textContent = '· entrega em ' + amanhaLabel();
+
+  if(!cidades.length){
+    container.style.display = 'none';
+    cards.innerHTML = '';
+    return;
+  }
+  container.style.display = 'block';
+
+  cards.innerHTML = cidades.map(cidade => {
+    const tecs = Object.keys(porCidade[cidade]).sort();
+    const totalCidade = tecs.reduce((a,t)=> a + porCidade[cidade][t].misc + porCidade[cidade][t].equip, 0);
+    const rows = tecs.map(t => {
+      const c = porCidade[cidade][t];
+      const tags = [];
+      if(c.misc)  tags.push('📦 ' + c.misc);
+      if(c.equip) tags.push('⚙️ ' + c.equip);
+      return `<div class="proxdia-item"><span class="nm">${esc(t)}</span><span class="tp">${tags.join(' · ')}</span></div>`;
+    }).join('');
+    return `
+      <div class="proxdia-card">
+        <div class="proxdia-city"><span>${esc(cidade)}</span><span class="proxdia-count">${totalCidade}</span></div>
+        ${rows}
+      </div>`;
+  }).join('');
+}
+
+// Envia (upsert) as entregas do próximo dia para o Supabase do Monitoramento.
+// Idempotente: reenviar o mesmo upload não duplica (chave data+cidade+técnico+tipo).
+async function enviarProxDiaParaMonitoramento(){
+  const badge = document.getElementById('proxDiaSync');
+  const porCidade = agruparProxDia();
+  const dataEntrega = amanhaISO();
+
+  const rows = [];
+  Object.keys(porCidade).forEach(cidade => {
+    Object.keys(porCidade[cidade]).forEach(tec => {
+      const c = porCidade[cidade][tec];
+      if(c.misc)  rows.push({data_entrega:dataEntrega, cidade:cidade, tecnico:tec, tipo:'MISCELÂNEA',  qtd:c.misc,  origem:'ACEITES'});
+      if(c.equip) rows.push({data_entrega:dataEntrega, cidade:cidade, tecnico:tec, tipo:'EQUIPAMENTO', qtd:c.equip, origem:'ACEITES'});
+    });
+  });
+
+  if(!rows.length){
+    badge.textContent = 'Sem itens pós-09h';
+    badge.className = 'proxdia-sync';
+    return;
+  }
+  if(!sb){
+    badge.textContent = 'Sem conexão com o banco';
+    badge.className = 'proxdia-sync err';
+    toast('Não foi possível enviar ao Monitoramento (Supabase indisponível)');
+    return;
+  }
+
+  badge.textContent = 'Enviando ao Monitoramento…';
+  badge.className = 'proxdia-sync';
+  try{
+    const chunk = 200;
+    for(let i=0; i<rows.length; i+=chunk){
+      const { error } = await sb.from('entregas_prox_dia')
+        .upsert(rows.slice(i, i+chunk), { onConflict: 'data_entrega,cidade,tecnico,tipo,origem' });
+      if(error) throw error;
+    }
+    badge.textContent = '✓ ' + rows.length + ' registro(s) no Monitoramento — entrega ' + amanhaLabel();
+    badge.className = 'proxdia-sync ok';
+    toast('Entregas do próximo dia enviadas ao Monitoramento!');
+  }catch(err){
+    console.error('Erro ao enviar entregas:', err);
+    badge.textContent = 'Erro ao enviar — tente novo upload';
+    badge.className = 'proxdia-sync err';
+    toast('Erro ao enviar entregas ao Monitoramento');
+  }
+}
+
+// liga o clique de cada botão "Copiar" ao card correspondente
+function bindCityCopy(){
+  document.querySelectorAll('.copy-city').forEach(btn => {
+    if(btn._bound) return; btn._bound = true;
+    btn.addEventListener('click', async () => {
+      const card = document.getElementById(btn.dataset.target);
+      if(!card) return;
+      const original = btn.innerHTML;
+      try{
+        const canvas = await html2canvas(card, {
+          backgroundColor:'#ffffff', scale:2, useCORS:true, logging:false,
+          ignoreElements: el => el.classList && el.classList.contains('copy-city')
+        });
+        canvas.toBlob(blob => {
+          const item = new ClipboardItem({'image/png': blob});
+          navigator.clipboard.write([item]).then(()=>{
+            btn.classList.add('done');
+            btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Copiado!';
+            toast(`"${btn.dataset.city}" copiado como imagem!`);
+            setTimeout(()=>{ btn.classList.remove('done'); btn.innerHTML = original; }, 2000);
+          }).catch(()=>toast('Erro ao copiar imagem'));
+        });
+      }catch(err){ console.error(err); toast('Erro ao gerar imagem'); }
+    });
+  });
+}
+
+function updateSummary() {
+  // Conta LINHAS pendentes (1 por linha), nunca soma quantidades
+  const miscPend  = miscData.filter(isPendenteItem).length;
+  const equipPend = equipData.filter(isPendenteItem).length;
+  const totalPend = miscPend + equipPend;
+  const proxDia   = getProxDiaItems().length;
+
+  document.getElementById('totalPassivo').textContent = totalPend;
+  document.getElementById('sumPassivos').textContent  = totalPend;
+  document.getElementById('sumMisc').textContent       = miscPend;
+  document.getElementById('sumEquip').textContent      = equipPend;
+  document.getElementById('totalProxDia').textContent  = proxDia;
+  document.getElementById('sumProxDia').textContent    = proxDia;
+}
+
+function updateUploadStatus() {
+  const now = new Date();
+  document.getElementById('lastUpdate').textContent = now.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+  
+  let nextSchedule = '08:00, 10:00, 15:00';
+  const hour = now.getHours();
+  
+  if(hour >= 8 && hour < 10) nextSchedule = 'próximo: 10:00';
+  else if(hour >= 10 && hour < 15) nextSchedule = 'próximo: 15:00';
+  else if(hour >= 15) nextSchedule = 'próximo: 08:00 (amanhã)';
+  else nextSchedule = 'próximo: 08:00';
+  
+  document.getElementById('updateInfo').textContent = `✓ Última atualização: ${now.toLocaleString('pt-BR')} | ${nextSchedule}`;
+}
+
+function render() {
+  updateSummary();
+  populateFilters();
+  renderConsolidado();
+  renderProximoDia();
+  toast('Dados atualizados com sucesso!');
+}
+
+// ============ FILTERS ============
+document.getElementById('filterBases').addEventListener('change', (e) => {
+  currentFilter.bases = e.target.value;
+  renderConsolidado();
+});
+
+// ============ COPY AS IMAGE ============
+document.getElementById('copyResumoBt').addEventListener('click', async function() {
+  const container = document.querySelector('.summary-container');
+  const btn = this;
+  
+  try {
+    const canvas = await html2canvas(container, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      logging: false
+    });
+    
+    canvas.toBlob(blob => {
+      const item = new ClipboardItem({'image/png': blob});
+      navigator.clipboard.write([item]).then(() => {
+        btn.classList.add('done');
+        btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg> Copiado!';
+        setTimeout(() => {
+          btn.classList.remove('done');
+          btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1"/></svg> Copiar como Imagem';
+        }, 2000);
+        toast('Resumo copiado para a área de transferência!');
+      }).catch(() => {
+        toast('Erro ao copiar imagem');
+      });
+    });
+  } catch(err) {
+    console.error('Erro ao gerar imagem:', err);
+    toast('Erro ao gerar imagem do resumo');
+  }
+});
+
+// ============ TOAST ============
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timeout);
+  t._timeout = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ============ INIT ============
+document.addEventListener('DOMContentLoaded', () => {
+  updateUploadStatus();
+  toast('Painel carregado! Use "Carregar planilhas" no cabeçalho para começar.');
+});
+</script>
+
+</body>
+</html>
