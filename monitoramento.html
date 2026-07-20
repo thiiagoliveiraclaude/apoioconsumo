@@ -536,10 +536,6 @@
     <div class="wallboard" id="wallboard"></div>
 
     <div class="filters-row">
-      <div class="field grow">
-        <label>Buscar técnico</label>
-        <input type="text" id="filterSearch" placeholder="Nome do técnico">
-      </div>
       <div class="field">
         <label>Status</label>
         <select id="filterStatus">
@@ -1020,25 +1016,22 @@
   const emptyState = document.getElementById("emptyState");
   const tableCount = document.getElementById("tableCount");
 
-  const filterSearch = document.getElementById("filterSearch");
   const filterStatus = document.getElementById("filterStatus");
   const filterDate = document.getElementById("filterDate");
 
-  [filterSearch, filterStatus, filterDate].forEach(el=>{
+  [filterStatus, filterDate].forEach(el=>{
     el.addEventListener("input", renderTable);
     el.addEventListener("change", renderTable);
   });
   document.getElementById("clearFilters").addEventListener("click", ()=>{
-    filterSearch.value=""; filterStatus.value=""; filterDate.value="";
+    filterStatus.value=""; filterDate.value="";
     selectedBases.clear();
     syncChipsUI();
     renderAll();
   });
 
   function getFiltered(){
-    const q = normalize(filterSearch.value);
     return records.filter(r=>{
-      if(q && !normalize(r.technician).includes(q)) return false;
       if(!baseMatches(r.base)) return false;
       if(filterStatus.value && r.status !== filterStatus.value) return false;
       if(filterDate.value && r.date !== filterDate.value) return false;
@@ -1529,12 +1522,27 @@
       '<div class="s-value mono">'+(byStatus[st]||0)+'</div></div>'
     ).join("");
 
+    // ---- registro analítico (mesma tabela do painel, só desta base e de hoje) ----
+    const linhasTabela = recs.slice()
+      .sort((a,b)=> (b.hora||"").localeCompare(a.hora||""))
+      .map(r=>{
+        const cls = STATUS_CLASS[r.status] || "";
+        return '<tr>' +
+          '<td class="mono">'+fmtDate(r.date)+'</td>' +
+          '<td>'+r.base+'</td>' +
+          '<td>'+r.technician+'</td>' +
+          '<td><span class="badge '+cls+'"><span class="d" style="background:currentColor;"></span>'+r.status+'</span></td>' +
+          '<td class="mono">'+r.hora+'</td>' +
+        '</tr>';
+      }).join("");
+
     const node = document.createElement("div");
-    node.style.cssText = "position:fixed; left:-10000px; top:0; width:760px; padding:24px; background:#fff;";
+    node.style.cssText = "position:fixed; left:-10000px; top:0; width:1000px; padding:26px; background:#fff;";
     node.innerHTML =
-      '<div style="font-family:\'Space Grotesk\',sans-serif; font-size:18px; font-weight:600; color:var(--navy); margin-bottom:4px;">'+base+'</div>' +
-      '<div style="font-size:12px; color:var(--muted); margin-bottom:18px;">Monitoramento de técnicos · '+fmtDate(todayISO())+'</div>' +
-      '<div class="wallboard" style="grid-template-columns:1fr; margin-bottom:18px;">' +
+      '<div style="font-family:\'Space Grotesk\',sans-serif; font-size:19px; font-weight:600; color:var(--navy); margin-bottom:4px;">Monitoramento de técnicos — '+base+'</div>' +
+      '<div style="font-size:12.5px; color:var(--muted); margin-bottom:20px;">'+fmtDate(todayISO())+' · '+total+(total===1?' registro':' registros')+'</div>' +
+      '<div class="summary-row" style="grid-template-columns:repeat(5,1fr); margin-bottom:22px;">'+sumCards+'</div>' +
+      '<div class="wallboard" style="grid-template-columns:1fr; margin-bottom:22px;">' +
         '<div class="base-card'+(total ? ' has-data' : '')+'">' +
           '<div class="b-name">'+base+'</div>' +
           '<div class="b-count mono">'+total+'<span>atend.</span></div>' +
@@ -1542,7 +1550,10 @@
           '<div class="b-breakdown">'+(chips || '<span class="chip">sem registros</span>')+'</div>' +
         '</div>' +
       '</div>' +
-      '<div class="summary-row" style="margin-bottom:0;">'+sumCards+'</div>';
+      '<div class="table-wrap"><table>' +
+        '<thead><tr><th>Data</th><th>Base</th><th>Técnico</th><th>Status</th><th>Hora</th></tr></thead>' +
+        '<tbody>'+(linhasTabela || '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:26px;">Sem registros hoje.</td></tr>')+'</tbody>' +
+      '</table></div>';
 
     document.body.appendChild(node);
     try{
